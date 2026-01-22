@@ -11,6 +11,9 @@
 namespace emu
 {
 
+#define PRINT_COMMANDS	0
+
+
 	struct Registers
 	{
 		std::uint8_t A{};
@@ -57,11 +60,14 @@ namespace emu
 
 	static auto PrintCommand(std::string_view cmd) -> void
 	{
+#if PRINT_COMMANDS
 		std::print("@ {:04x}   {}", s_Registers.PC, cmd);
+#endif
 	}
 
 	static auto PrintCommandArg(std::uint16_t value, bool immediate = false, bool decimal = false) -> void
 	{
+#if PRINT_COMMANDS
 		if (immediate)
 			std::print("   #");
 		else
@@ -71,21 +77,28 @@ namespace emu
 			std::println("${}", static_cast<std::int16_t>(value));
 		else
 			std::println("${:02x}", value);
+#endif
 	}
 
 	static auto PrintCommandArgAbsolute(std::uint16_t value, std::string_view reg) -> void
 	{
+#if PRINT_COMMANDS
 		std::println("   ${:04x},{}", value, reg);
+#endif
 	}
 
 	static auto PrintCommandArgIndirect(std::uint8_t value, std::string_view reg) -> void
 	{
+#if PRINT_COMMANDS
 		std::println("   (${:02x}),{}", value, reg);
+#endif
 	}
 
 	static auto PrintSingleCommand(std::string_view cmd) -> void
 	{
+#if PRINT_COMMANDS
 		std::println("@ {:04x}   {}", s_Registers.PC, cmd);
+#endif
 	}
 
 	static auto BranchCarrySet() -> std::optional<std::int16_t>
@@ -166,10 +179,25 @@ namespace emu
 		s_Memory[StackLocation + s_Registers.SP--] = static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF);
 		s_Memory[StackLocation + s_Registers.SP--] = static_cast<std::uint8_t>(((s_Registers.PC + 3) & 0xFF00) >> 8);
 
+		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
+
 		auto addressLow = s_Memory.at(s_Registers.PC + 1);
 		auto addressHigh = s_Memory.at(s_Registers.PC + 2);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 		PrintCommandArg(address);
+
+		s_Registers.PC = address;
+
+		return 0;
+	}
+
+	static auto ReturnFromSubroutine() -> std::optional<std::uint16_t>
+	{
+		auto addressHigh = s_Memory[StackLocation + ++s_Registers.SP];
+		auto addressLow = s_Memory[StackLocation + ++s_Registers.SP];
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		std::println("RTS to 0x{:04x}", address);
 
 		s_Registers.PC = address;
 
@@ -287,6 +315,12 @@ namespace emu
 			{
 				PrintCommand("JMP");
 				return JmpAbsolute();
+			}
+
+			case 0x60:
+			{
+				PrintSingleCommand("RTS");
+				return ReturnFromSubroutine();
 			}
 
 			// SEI - 1-I
