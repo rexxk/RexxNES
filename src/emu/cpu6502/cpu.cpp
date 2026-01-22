@@ -29,6 +29,8 @@ namespace emu
 	constexpr std::uint8_t FlagOverflow = 6;
 	constexpr std::uint8_t FlagNegative = 7;
 
+	constexpr std::uint16_t StackLocation = 0x0100;
+
 	static Registers s_Registers{};
 	static std::bitset<8> s_Flags{};
 	static std::vector<std::uint8_t> s_Memory(65536);
@@ -58,7 +60,7 @@ namespace emu
 		std::print("@ {:04x}   {}", s_Registers.PC, cmd);
 	}
 
-	static auto PrintCommandArg(uint16_t value, bool immediate = false, bool decimal = false) -> void
+	static auto PrintCommandArg(std::uint16_t value, bool immediate = false, bool decimal = false) -> void
 	{
 		if (immediate)
 			std::print("   #");
@@ -66,14 +68,19 @@ namespace emu
 			std::print("   ");
 
 		if (decimal)
-			std::println("${}", static_cast<int16_t>(value));
+			std::println("${}", static_cast<std::int16_t>(value));
 		else
 			std::println("${:02x}", value);
 	}
 
-	static auto PrintCommandArgAbsolute(uint16_t value, std::string_view reg) -> void
+	static auto PrintCommandArgAbsolute(std::uint16_t value, std::string_view reg) -> void
 	{
 		std::println("   ${:04x},{}", value, reg);
+	}
+
+	static auto PrintCommandArgIndirect(std::uint8_t value, std::string_view reg) -> void
+	{
+		std::println("   (${:02x}),{}", value, reg);
 	}
 
 	static auto PrintSingleCommand(std::string_view cmd) -> void
@@ -94,6 +101,19 @@ namespace emu
 		return 2;
 	}
 
+	static auto BranchNotZero() -> std::optional<std::int16_t>
+	{
+		std::int8_t value = s_Memory.at(s_Registers.PC + 1);
+		PrintCommandArg(value, false, true);
+
+		if (s_Flags[FlagZero] == false)
+		{
+			s_Registers.PC += value;
+		}
+
+		return 2;
+	}
+
 	static auto BranchPlus() -> std::optional<std::int16_t>
 	{
 		std::int8_t value = s_Memory.at(s_Registers.PC + 1);			
@@ -107,12 +127,12 @@ namespace emu
 		return 2;
 	}
 
-	static auto CmpImmediate() -> std::optional<std::uint16_t>
+	static auto CmpImmediate(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
 	{
 		auto value = s_Memory.at(s_Registers.PC + 1);
 		PrintCommandArg(value, true);
 
-		auto result = s_Registers.A - value;
+		auto result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
 		s_Flags[FlagCarry] = static_cast<int8_t>(result) >= 0;
@@ -138,6 +158,22 @@ namespace emu
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
 		return 1;
+	}
+
+	static auto JmpAbsolute() -> std::optional<std::uint16_t>
+	{
+		// Save PC+2 to stack
+		s_Memory[StackLocation + s_Registers.SP--] = static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF);
+		s_Memory[StackLocation + s_Registers.SP--] = static_cast<std::uint8_t>(((s_Registers.PC + 3) & 0xFF00) >> 8);
+
+		auto addressLow = s_Memory.at(s_Registers.PC + 1);
+		auto addressHigh = s_Memory.at(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+		PrintCommandArg(address);
+
+		s_Registers.PC = address;
+
+		return 0;
 	}
 
 	static auto LdAbsolute(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
@@ -206,6 +242,21 @@ namespace emu
 		return 2;
 	}
 
+	static auto StaIndirect(std::uint8_t Registers::* reg, std::string_view regStr) -> std::optional<std::uint16_t>
+	{
+		auto zeropageAddress = s_Memory.at(s_Registers.PC + 1);
+
+		auto addressLow = s_Memory.at(zeropageAddress);
+		auto addressHigh = s_Memory.at(zeropageAddress + 1);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+		PrintCommandArgIndirect(address, regStr);
+		address += s_Registers.*reg;
+
+		s_Memory.at(address) = s_Registers.A;
+
+		return 2;
+	}
+
 	static auto TransferA(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
 	{
 		s_Registers.*reg = s_Registers.A;
@@ -231,6 +282,13 @@ namespace emu
 				return BranchPlus();
 			}
 
+			// JMP (JMP $xxxx) -
+			case 0x20:
+			{
+				PrintCommand("JMP");
+				return JmpAbsolute();
+			}
+
 			// SEI - 1-I
 			case 0x78:
 			{
@@ -246,6 +304,13 @@ namespace emu
 				return StZeropage(&Registers::A);
 			}
 
+			// STX zeropage (STX $xx) - X->M -
+			case 0x86:
+			{
+				PrintCommand("STX");
+				return StZeropage(&Registers::X);
+			}
+
 			// DEY - Y-1->Y NZ
 			case 0x88:
 			{
@@ -258,6 +323,13 @@ namespace emu
 			{
 				PrintCommand("STA");
 				return StAbsolute(&Registers::A);
+			}
+
+			// STA indirect (STA ($xx),Y) - A->M -
+			case 0x91:
+			{
+				PrintCommand("STA");
+				return StaIndirect(&Registers::Y, "Y");
 			}
 
 			// TXS - X->SP -
@@ -317,6 +389,13 @@ namespace emu
 				return LdAbsoluteReg(&Registers::A, &Registers::X, "X");
 			}
 
+			// CPY immediate (CPY #$xx) - A-M  NZC
+			case 0xC0:
+			{
+				PrintCommand("CPY");
+				return CmpImmediate(&Registers::Y);
+			}
+
 			// INY - Y+1->Y NZ
 			case 0xC8:
 			{
@@ -328,7 +407,21 @@ namespace emu
 			case 0xC9:
 			{
 				PrintCommand("CMP");
-				return CmpImmediate();
+				return CmpImmediate(&Registers::A);
+			}
+
+			// DEX implied - X-1->X NZ
+			case 0xCA:
+			{
+				PrintSingleCommand("DEX");
+				return DeImplied(&Registers::X);
+			}
+
+			// BNE relative (BNE #xx)
+			case 0xD0:
+			{
+				PrintCommand("BNE");
+				return BranchNotZero();
 			}
 
 			// CLD - 0->D
@@ -337,6 +430,13 @@ namespace emu
 				PrintSingleCommand("CLD");
 				s_Flags[FlagDecimal] = false;
 				return 1;
+			}
+
+			// CPX immediate (CPX #$xx) - X-M  NZC
+			case 0xE0:
+			{
+				PrintCommand("CPX");
+				return CmpImmediate(&Registers::X);
 			}
 
 			default:
