@@ -316,6 +316,20 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
+	static auto StaAbsoluteReg(std::uint8_t Registers::* reg, std::string_view regStr) -> std::optional<OpValue>
+	{
+		auto addressLow = s_Memory.at(s_Registers.PC + 1);
+		auto addressHigh = s_Memory.at(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		PrintCommandArgIndirect(address, regStr);
+		address += s_Registers.*reg;
+
+		s_Memory.at(address) = s_Registers.A;
+
+		return OpValue{ 3, 5 };
+	}
+
 	static auto StaIndirect(std::uint8_t Registers::* reg, std::string_view regStr) -> std::optional<OpValue>
 	{
 		auto zeropageAddress = s_Memory.at(s_Registers.PC + 1);
@@ -423,6 +437,13 @@ namespace emu
 			{
 				PrintCommand("STA");
 				return StaIndirect(&Registers::Y, "Y");
+			}
+
+			// STA abs, Y (STA #$xx,Y) -
+			case 0x99:
+			{
+				PrintCommand("STA");
+				return StaAbsoluteReg(&Registers::Y, "Y");
 			}
 
 			// TXS - X->SP -
