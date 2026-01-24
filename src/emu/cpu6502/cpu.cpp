@@ -1,12 +1,19 @@
 #include "emu/cpu6502/cpu.h"
 
 #include <bitset>
+#include <chrono>
 #include <optional>
 #include <print>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+
+using namespace std::chrono_literals;
 
 namespace emu
 {
@@ -37,6 +44,12 @@ namespace emu
 	static Registers s_Registers{};
 	static std::bitset<8> s_Flags{};
 	static std::vector<std::uint8_t> s_Memory(65536);
+
+	struct OpValue
+	{
+		std::uint8_t Size{ 0 };
+		std::uint8_t ClockCycles{ 0 };
+	};
 
 	static auto PrintRegisters() -> void
 	{
@@ -101,46 +114,77 @@ namespace emu
 #endif
 	}
 
-	static auto BranchCarrySet() -> std::optional<std::int16_t>
+	static auto BitAbsolute() -> std::optional<OpValue>
+	{
+		std::uint8_t operand = s_Memory.at(s_Registers.PC + 1);
+
+		s_Flags[FlagZero] = s_Registers.A & operand;
+		s_Flags[FlagOverflow] = operand & 0b0100'0000;
+		s_Flags[FlagNegative] = operand & 0b1000'0000;
+
+
+		return OpValue{ 3, 4 };
+	}
+
+	static auto BitZeropage() -> std::optional<OpValue>
+	{
+		std::uint8_t address = s_Memory.at(s_Registers.PC + 1);
+		std::uint8_t operand = s_Memory.at(address);
+
+		s_Flags[FlagZero] = s_Registers.A & operand;
+		s_Flags[FlagOverflow] = operand & 0b0100'0000;
+		s_Flags[FlagNegative] = operand & 0b1000'0000;
+
+
+		return OpValue{ 2, 3 };
+	}
+
+	static auto BranchCarrySet() -> std::optional<OpValue>
 	{
 		std::int8_t value = s_Memory.at(s_Registers.PC + 1);
 		PrintCommandArg(value, false, true);
+
+		bool boundaryCrossed = ((s_Registers.PC + value) & 0xFF00) != (s_Registers.PC & 0xFF00);
 
 		if (s_Flags[FlagCarry] == true)
 		{
 			s_Registers.PC += value;
 		}
 
-		return 2;
-	}
+		return OpValue{ 2, static_cast<std::uint8_t>(2 + (boundaryCrossed ? 2 : 1)) };
+	};
 
-	static auto BranchNotZero() -> std::optional<std::int16_t>
+	static auto BranchNotZero() -> std::optional<OpValue>
 	{
 		std::int8_t value = s_Memory.at(s_Registers.PC + 1);
 		PrintCommandArg(value, false, true);
+
+		bool boundaryCrossed = ((s_Registers.PC + value) & 0xFF00) != (s_Registers.PC & 0xFF00);
 
 		if (s_Flags[FlagZero] == false)
 		{
 			s_Registers.PC += value;
 		}
 
-		return 2;
+		return OpValue{ 2, static_cast<std::uint8_t>(2 + boundaryCrossed ? 2 : 1) };
 	}
 
-	static auto BranchPlus() -> std::optional<std::int16_t>
+	static auto BranchPlus() -> std::optional<OpValue>
 	{
 		std::int8_t value = s_Memory.at(s_Registers.PC + 1);			
 		PrintCommandArg(value, false, true);
+
+		bool boundaryCrossed = ((s_Registers.PC + value) & 0xFF00) != (s_Registers.PC & 0xFF00);
 
 		if (s_Flags[FlagNegative] == false)
 		{
 			s_Registers.PC += value;
 		}
 
-		return 2;
+		return OpValue{ 2, static_cast<std::uint8_t>(2 + boundaryCrossed ? 2 : 1) };
 	}
 
-	static auto CmpImmediate(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto CmpImmediate(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = s_Memory.at(s_Registers.PC + 1);
 		PrintCommandArg(value, true);
@@ -150,30 +194,30 @@ namespace emu
 		s_Flags[FlagZero] = result == 0;
 		s_Flags[FlagCarry] = static_cast<int8_t>(result) >= 0;
 
-		return 2;
+		return OpValue{ 2, 2 };
 	}
 
-	static auto DeImplied(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto DeImplied(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = s_Registers.*reg - 1;
 
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
-		return 1;
+		return OpValue{ 1, 2 };
 	}
 
-	static auto InImplied(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto InImplied(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = s_Registers.*reg + 1;
 
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
-		return 1;
+		return OpValue{ 1, 2 };
 	}
 
-	static auto JmpAbsolute() -> std::optional<std::uint16_t>
+	static auto JmpAbsolute() -> std::optional<OpValue>
 	{
 		// Save PC+2 to stack
 		s_Memory[StackLocation + s_Registers.SP--] = static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF);
@@ -188,10 +232,10 @@ namespace emu
 
 		s_Registers.PC = address;
 
-		return 0;
+		return OpValue{ 0, 3 };
 	}
 
-	static auto ReturnFromSubroutine() -> std::optional<std::uint16_t>
+	static auto ReturnFromSubroutine() -> std::optional<OpValue>
 	{
 		auto addressHigh = s_Memory[StackLocation + ++s_Registers.SP];
 		auto addressLow = s_Memory[StackLocation + ++s_Registers.SP];
@@ -201,10 +245,10 @@ namespace emu
 
 		s_Registers.PC = address;
 
-		return 0;
+		return OpValue{ 0, 6 };
 	}
 
-	static auto LdAbsolute(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto LdAbsolute(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto addressLow = s_Memory.at(s_Registers.PC + 1);
 		auto addressHigh = s_Memory.at(s_Registers.PC + 2);
@@ -216,10 +260,10 @@ namespace emu
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
-		return 3;
+		return OpValue{ 3, 4 };
 	}
 
-	static auto LdAbsoluteReg(std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg, std::string_view regString) -> std::optional<std::uint16_t>
+	static auto LdAbsoluteReg(std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg, std::string_view regString) -> std::optional<OpValue>
 	{
 		auto addressLow = s_Memory.at(s_Registers.PC + 1);
 		auto addressHigh = s_Memory.at(s_Registers.PC + 2);
@@ -232,10 +276,12 @@ namespace emu
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
-		return 3;
+		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
+
+		return OpValue{ 3, static_cast<std::uint8_t>(4 + boundaryCrossed ? 1 : 0) };
 	}
 
-	static auto LdImmediate(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto LdImmediate(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = s_Memory.at(s_Registers.PC + 1);
 		PrintCommandArg(value, true);
@@ -245,10 +291,10 @@ namespace emu
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
-		return 2;
+		return OpValue{ 2, 2 };
 	}
 
-	static auto StAbsolute(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto StAbsolute(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto addressLow = s_Memory.at(s_Registers.PC + 1);
 		auto addressHigh = s_Memory.at(s_Registers.PC + 2);
@@ -257,20 +303,20 @@ namespace emu
 
 		s_Memory.at(address) = s_Registers.*reg;
 
-		return 3;
+		return OpValue{ 3, 4 };
 	}
 
-	static auto StZeropage(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto StZeropage(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto zeropageAddress = s_Memory.at(s_Registers.PC + 1);
 		PrintCommandArg(zeropageAddress);
 
 		s_Memory.at(zeropageAddress) = s_Registers.*reg;
 
-		return 2;
+		return OpValue{ 2, 3 };
 	}
 
-	static auto StaIndirect(std::uint8_t Registers::* reg, std::string_view regStr) -> std::optional<std::uint16_t>
+	static auto StaIndirect(std::uint8_t Registers::* reg, std::string_view regStr) -> std::optional<OpValue>
 	{
 		auto zeropageAddress = s_Memory.at(s_Registers.PC + 1);
 
@@ -282,23 +328,21 @@ namespace emu
 
 		s_Memory.at(address) = s_Registers.A;
 
-		return 2;
+		return OpValue{ 2, 6 };
 	}
 
-	static auto TransferA(std::uint8_t Registers::* reg) -> std::optional<std::uint16_t>
+	static auto TransferA(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = s_Registers.A;
 
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
 
-		return 1;
+		return OpValue{ 1, 2 };
 	}
 
-	static auto ExecuteOpcode() -> const std::optional<std::uint16_t>
+	static auto ExecuteOpcode() -> const std::optional<OpValue>
 	{
-		std::optional<std::uint16_t> dataSize{ 0 };
-
 		auto opCode = s_Memory.at(s_Registers.PC);
 
 		switch (opCode)
@@ -317,6 +361,21 @@ namespace emu
 				return JmpAbsolute();
 			}
 
+			// BIT zeropage (BIT $xx) - NVZ
+			case 0x24:
+			{
+				PrintCommand("BIT");
+				return BitZeropage();
+			}
+
+			// BIT absolute (BIT #$xx) - NVZ
+			case 0x2C:
+			{
+				PrintCommand("BIT");
+				return BitAbsolute();
+			}
+
+			// RTS
 			case 0x60:
 			{
 				PrintSingleCommand("RTS");
@@ -328,7 +387,7 @@ namespace emu
 			{
 				PrintSingleCommand("SEI");
 				s_Flags[FlagInterrupt] = true;
-				return 1;
+				return OpValue{ 1, 2 };
 			}
 
 			// STA zeropage (STA $xx) - A->M  -
@@ -371,7 +430,7 @@ namespace emu
 			{
 				PrintSingleCommand("TXS");
 				s_Registers.SP = s_Registers.X;
-				return 1;
+				return OpValue{ 1, 2 };
 			}
 
 			// LDX immediate (LDX #xxxx) - M->X NZ
@@ -463,7 +522,7 @@ namespace emu
 			{
 				PrintSingleCommand("CLD");
 				s_Flags[FlagDecimal] = false;
-				return 1;
+				return OpValue{ 1, 2 };
 			}
 
 			// CPX immediate (CPX #$xx) - X-M  NZC
@@ -479,7 +538,7 @@ namespace emu
 	
 			}
 	
-		return dataSize;
+		return std::nullopt;
 	}
 
 
@@ -496,59 +555,58 @@ namespace emu
 		// Sets VBLANK flag - keep it static for debugging until PPU is implemented :-)
 		SetMemory(0x2002, 0x80);
 
-		while (s_Memory.at(s_Registers.PC) != 0u)
-		{
-			auto maybeExecuted = ExecuteOpcode();
+		const auto frequency = 1'662'607;
+		const auto cycleTime = 1'000'000'000 / frequency;
 
-			if (maybeExecuted.has_value())
-				s_Registers.PC += maybeExecuted.value();
-			else
-				break;
+		LARGE_INTEGER li{};
+		if (!QueryPerformanceFrequency(&li))
+		{
+			std::println("QueryPerformanceFrequency failed");
 		}
 
-		PrintRegisters();
-	}
+		auto freq = li.QuadPart; //  / 1'000.0;
 
+		std::println("Queried frequency: {}", freq);
 
-#if 0
-	auto CPU::Execute(std::span<uint8_t> program, const std::uint16_t memoryLocation) -> void
-	{
-		if ((memoryLocation + program.size()) > s_Memory.size())
-		{
-			std::println("Program memory location is out of bounds");
-			return;
-		}
+		if (freq < frequency)
+			std::println("Too high frequency for QueryPerformanceFrequency");
 
-		// Place program in memory
-		std::copy(std::begin(program), std::end(program), s_Memory.data() + memoryLocation);
+		auto frequencyDivider = static_cast<double>(freq) / frequency;
 
-		// Setup program counter
-//		s_Registers.PC = memoryLocation;
-		s_Flags[FlagInterrupt] = true;
+		std::println("Frequency divider: {}", frequencyDivider);
+
+		std::uint64_t cycles{ 0 };
 
 		while (s_Memory.at(s_Registers.PC) != 0u)
 		{
-//			std::println("@{:x}: {:x}", s_Registers.PC, s_Memory.at(s_Registers.PC));
+			LARGE_INTEGER startCount{};
+			QueryPerformanceCounter(&startCount);
 
 			auto maybeExecuted = ExecuteOpcode();
 
-			if (maybeExecuted.has_value())
-				s_Registers.PC += maybeExecuted.value();
-			else
+			if (!maybeExecuted)
 				break;
+			
+			s_Registers.PC += maybeExecuted->Size;
+
+			cycles += maybeExecuted->ClockCycles;
+	
+			std::int64_t countsElapsed{};
+
+			// Cycle sync
+			do
+			{
+				LARGE_INTEGER endCount;
+				QueryPerformanceCounter(&endCount);
+
+				countsElapsed = endCount.QuadPart - startCount.QuadPart;
+			} while (static_cast<double>(countsElapsed) < (maybeExecuted->ClockCycles * frequencyDivider));
 		}
 
+		std::println("Cycles: {}", cycles);
 		PrintRegisters();
-//		for (auto& op : program)
-//		{
-//			std::println("Data: {:x}", op);
-//
-//
-//
-//		}
-
 	}
-#endif
+
 
 	auto CPU::InstallROM(std::uint16_t address, std::span<uint8_t> romData) -> void
 	{

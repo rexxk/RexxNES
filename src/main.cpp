@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <fstream>
 #include <print>
+#include <thread>
 #include <vector>
 
 
@@ -87,7 +88,11 @@ auto main() -> int
 	cpu.InstallROM(0x8000, programRom);
 	cpu.InstallROM(0x0000, charRom);
 //	cpu.SetMemory(0x0010, 0xAB);
-	cpu.Execute();
+
+	std::thread cpuThread(&emu::CPU::Execute, &cpu);
+//	cpu.Execute();
+
+	cpuThread.join();
 //	cpu.Execute(program, 0x1000);
 
 	return 0;
