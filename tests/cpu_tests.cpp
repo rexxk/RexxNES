@@ -46,3 +46,80 @@ TEST(CpuTests, ImmediateAddressing_LDY)
 
 	ASSERT_EQ(registers.Y, 0xCD);
 }
+
+
+TEST(CpuTests, AbsoluteAddressing_LDA)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xAD, 0x03, 0x10, 0x35 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(registers.A, 0x35);
+}
+
+TEST(CpuTests, AbsoluteAddressing_LDX)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xAE, 0x03, 0x10, 0x35 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(registers.X, 0x35);
+}
+
+TEST(CpuTests, AbsoluteAddressing_LDY)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xAC, 0x03, 0x10, 0x35 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(registers.Y, 0x35);
+}
+
+
+TEST(CpuTests, AbsoluteAddressingOffset_LDA)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xA2, 0x01, 0xBD, 0x05, 0x10, 0x35, 0x17 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(registers.A, 0x17);
+}
+
+
+
+TEST(CpuTests, IndirectIndexed_STA)
+{
+	emu::Memory memory;
+	memory.Write(0x02, 0x00);
+	memory.Write(0x03, 0x01);
+	std::vector<uint8_t> program{ 0xA9, 0x12, 0xA0, 0x03, 0x91, 0x02 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(memory.Read(0x0103), 0x12);
+}
+

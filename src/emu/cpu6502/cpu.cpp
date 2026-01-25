@@ -1105,10 +1105,22 @@ namespace emu
 				return Transfer(&Registers::A, &Registers::X);
 			}
 
+			// LDY absolute (LDY $xxxx) - M->Y NZ
+			case 0xAC:
+			{
+				return LdAbsolute(cpu, &Registers::Y);
+			}
+
 			// LDA absolute (LDA $xx) - M->A NZ
 			case 0xAD:
 			{
 				return LdAbsolute(cpu, &Registers::A);
+			}
+
+			// LDX absolute (LDX $xxxx) - M->X NZ
+			case 0xAE:
+			{
+				return LdAbsolute(cpu, &Registers::X);
 			}
 
 			// BCS (BCS #rel) - branch if C=1 -

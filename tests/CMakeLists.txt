@@ -1,6 +1,5 @@
 # Tests
 
-enable_testing()
 
 add_executable(cpu_tests
 			cpu_tests.cpp
