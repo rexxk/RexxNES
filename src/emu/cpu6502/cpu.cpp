@@ -1197,9 +1197,7 @@ namespace emu
 		if (startVector == 0)
 		{
 			std::uint16_t resetVector = (m_Memory.Read(s_Registers.PC + 1) << 8) + m_Memory.Read(s_Registers.PC);
-
-			std::println("Reset vector: {:04x}", resetVector);
-
+//			std::println("Reset vector: {:04x}", resetVector);
 			s_Registers.PC = resetVector;
 		}
 		else
@@ -1219,14 +1217,14 @@ namespace emu
 
 		auto freq = li.QuadPart; //  / 1'000.0;
 
-		std::println("Queried frequency: {}", freq);
+//		std::println("Queried frequency: {}", freq);
 
-		if (freq < frequency)
-			std::println("Too high frequency for QueryPerformanceFrequency");
-
+//		if (freq < frequency)
+//			std::println("Too high frequency for QueryPerformanceFrequency");
+//
 		auto frequencyDivider = static_cast<double>(freq) / frequency;
 
-		std::println("Frequency divider: {}", frequencyDivider);
+//		std::println("Frequency divider: {}", frequencyDivider);
 
 		std::uint64_t cycles{ 0 };
 

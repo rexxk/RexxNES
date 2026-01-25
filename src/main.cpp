@@ -44,7 +44,7 @@ auto main() -> int
 	std::size_t romSize = fs.tellg();
 	fs.seekg(0, fs.beg);
 
-	std::println("ROM size: {} bytes", romSize);
+//	std::println("ROM size: {} bytes", romSize);
 
 	ROMHeader romHeader{};
 	fs.read((char*)&romHeader, sizeof(ROMHeader));
@@ -56,31 +56,31 @@ auto main() -> int
 		fs.read((char*)trainerData.data(), 512);
 	}
 
-	std::println("Reading prog ROM");
+//	std::println("Reading prog ROM");
 
 	std::vector<uint8_t> programRom(romHeader.PrgRomSize * 0x4000);
 	fs.read((char*)programRom.data(), romHeader.PrgRomSize * 0x4000);
 
-	std::println("Reading char ROM");
+//	std::println("Reading char ROM");
 
 	std::vector<uint8_t> charRom(romHeader.ChrRomSize * 0x2000);
 	fs.read((char*)charRom.data(), romHeader.ChrRomSize * 0x2000);
 
-	std::println("File location: {}", static_cast<std::size_t>(fs.tellg()));
+//	std::println("File location: {}", static_cast<std::size_t>(fs.tellg()));
 
 	//std::uint8_t Flags1{};
 	//std::uint8_t Flags2{};
 	//std::uint8_t Flags3{};
 	//std::uint8_t Flags4{};
 	//std::uint8_t Flags5{};
-	std::println(" * Program ROM size : {} bytes", romHeader.PrgRomSize * 0x4000);
-	std::println(" * Char ROM size    : {} bytes", romHeader.ChrRomSize * 0x2000);
-
-	std::println(" * Flags 6          : {:08b}", romHeader.Flags1);
-	std::println(" * Flags 7          : {:08b}", romHeader.Flags2);
-	std::println(" * Flags 8          : {:08b}", romHeader.Flags3);
-	std::println(" * Flags 9          : {:08b}", romHeader.Flags4);
-	std::println(" * Flags 10         : {:08b}", romHeader.Flags5);
+//	std::println(" * Program ROM size : {} bytes", romHeader.PrgRomSize * 0x4000);
+//	std::println(" * Char ROM size    : {} bytes", romHeader.ChrRomSize * 0x2000);
+//
+//	std::println(" * Flags 6          : {:08b}", romHeader.Flags1);
+//	std::println(" * Flags 7          : {:08b}", romHeader.Flags2);
+//	std::println(" * Flags 8          : {:08b}", romHeader.Flags3);
+//	std::println(" * Flags 9          : {:08b}", romHeader.Flags4);
+//	std::println(" * Flags 10         : {:08b}", romHeader.Flags5);
 
 	fs.close();
 

@@ -5,7 +5,7 @@
 #include <vector>
 
 
-TEST(CpuTests, ImmediateAddressing_LDA)
+TEST(CpuTests, LDA_ImmediateAddressing)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xA9, 0xCD };
@@ -19,7 +19,7 @@ TEST(CpuTests, ImmediateAddressing_LDA)
 	ASSERT_EQ(registers.A, 0xCD);
 }
 
-TEST(CpuTests, ImmediateAddressing_LDX)
+TEST(CpuTests, LDX_ImmediateAddressing)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xA2, 0xCD };
@@ -33,7 +33,7 @@ TEST(CpuTests, ImmediateAddressing_LDX)
 	ASSERT_EQ(registers.X, 0xCD);
 }
 
-TEST(CpuTests, ImmediateAddressing_LDY)
+TEST(CpuTests, LDY_ImmediateAddressing)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xA0, 0xCD };
@@ -48,7 +48,7 @@ TEST(CpuTests, ImmediateAddressing_LDY)
 }
 
 
-TEST(CpuTests, AbsoluteAddressing_LDA)
+TEST(CpuTests, LDA_AbsoluteAddressing)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xAD, 0x03, 0x10, 0x35 };
@@ -62,7 +62,7 @@ TEST(CpuTests, AbsoluteAddressing_LDA)
 	ASSERT_EQ(registers.A, 0x35);
 }
 
-TEST(CpuTests, AbsoluteAddressing_LDX)
+TEST(CpuTests, LDX_AbsoluteAddressing)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xAE, 0x03, 0x10, 0x35 };
@@ -76,7 +76,7 @@ TEST(CpuTests, AbsoluteAddressing_LDX)
 	ASSERT_EQ(registers.X, 0x35);
 }
 
-TEST(CpuTests, AbsoluteAddressing_LDY)
+TEST(CpuTests, LDY_AbsoluteAddressing)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xAC, 0x03, 0x10, 0x35 };
@@ -91,7 +91,7 @@ TEST(CpuTests, AbsoluteAddressing_LDY)
 }
 
 
-TEST(CpuTests, AbsoluteAddressingOffset_LDA)
+TEST(CpuTests, LDA_AbsoluteAddressingOffset)
 {
 	emu::Memory memory;
 	std::vector<uint8_t> program{ 0xA2, 0x01, 0xBD, 0x05, 0x10, 0x35, 0x17 };
@@ -107,7 +107,35 @@ TEST(CpuTests, AbsoluteAddressingOffset_LDA)
 
 
 
-TEST(CpuTests, IndirectIndexed_STA)
+TEST(CpuTests, STA_Zeropage)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xA9, 0x25, 0x85, 0x02 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(memory.Read(0x0002), 0x25);
+}
+
+TEST(CpuTests, STX_Zeropage)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xA2, 0x31, 0x86, 0xc2 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(memory.Read(0x00c2), 0x31);
+}
+
+TEST(CpuTests, STA_IndirectIndexed)
 {
 	emu::Memory memory;
 	memory.Write(0x02, 0x00);
@@ -123,3 +151,17 @@ TEST(CpuTests, IndirectIndexed_STA)
 	ASSERT_EQ(memory.Read(0x0103), 0x12);
 }
 
+
+TEST(CpuTests, DEY_implied)
+{
+	emu::Memory memory;
+	std::vector<uint8_t> program{ 0xA0, 0x10, 0x88 };
+	memory.InstallROM(0x1000, program);
+
+	emu::CPU cpu(memory);
+
+	cpu.Execute(0x1000);
+	auto& registers = cpu.GetRegisters();
+
+	ASSERT_EQ(registers.Y, 0x0F);
+}
