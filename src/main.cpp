@@ -1,4 +1,5 @@
 #include "emu/cpu6502/cpu.h"
+#include "emu/memory/memory.h"
 
 #include <cstdint>
 #include <fstream>
@@ -24,8 +25,6 @@ struct ROMHeader
 auto main() -> int
 {
 	std::println("RexxNES 2026 - emulation at its worst");
-
-	emu::CPU cpu{};
 
 	std::vector<std::uint8_t> program
 	{
@@ -85,11 +84,13 @@ auto main() -> int
 
 	fs.close();
 
-	cpu.InstallROM(0x8000, programRom);
-	cpu.InstallROM(0x0000, charRom);
-//	cpu.SetMemory(0x0010, 0xAB);
+	emu::Memory memory{};
+	memory.InstallROM(0x8000, programRom);
+	memory.InstallROM(0x0000, charRom);
 
-	std::thread cpuThread(&emu::CPU::Execute, &cpu);
+	emu::CPU cpu{memory};
+
+	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 //	cpu.Execute();
 
 	cpuThread.join();

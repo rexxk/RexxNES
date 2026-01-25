@@ -3,8 +3,10 @@
 cmake_minimum_required(VERSION 3.15)
 
 include(FetchContent)
+include(GoogleTest)
 
-
+FetchContent_Declare(googletest GIT_REPOSITORY http://github.com/google/googletest GIT_TAG main)
+FetchContent_MakeAvailable(googletest)
 
 cmake_policy(SET CMP0076 NEW)
 cmake_policy(SET CMP0079 NEW)
@@ -23,3 +25,4 @@ add_subdirectory(src)
 include_directories(TARGET RexxNES "${CMAKE_SOURCE_DIR}/src")
 
 
+add_subdirectory(tests)
