@@ -18,7 +18,7 @@ using namespace std::chrono_literals;
 namespace emu
 {
 
-#define PRINT_COMMANDS	0
+#define PRINT_COMMANDS	1
 
 	
 	constexpr std::uint8_t FlagCarry = 0;
@@ -64,7 +64,7 @@ namespace emu
 	static auto PrintCommand(std::string_view cmd) -> void
 	{
 #if PRINT_COMMANDS
-		std::print("@ {:04x}   {}", s_Registers.PC, cmd);
+		std::print("@ {:04x}   {}\n", s_Registers.PC, cmd);
 #endif
 	}
 
@@ -637,6 +637,19 @@ namespace emu
 		return m_Memory.Read(address);
 	}
 
+	auto CPU::ReadIndirectIndexed() -> std::uint8_t
+	{
+		auto zeropageAddress = m_Memory.Read(s_Registers.PC + 1);
+
+		auto addressLow = m_Memory.Read(zeropageAddress);
+		auto addressHigh = m_Memory.Read(zeropageAddress + 1);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		address += s_Registers.Y;
+
+		return m_Memory.Read(address);
+	}
+
 	auto CPU::ReadZeropageAddress() -> std::uint8_t
 	{
 		auto addressLow = m_Memory.Read(s_Registers.PC + 1);
@@ -731,14 +744,28 @@ namespace emu
 //		return OpValue{ 2, 2 };
 //	}
 
-	static auto CmpImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
+		auto value = cpu.ReadAbsoluteAddress();
 
 		std::int8_t result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
 		s_Flags[FlagCarry] = result >= 0;
+
+		return OpValue{ 3, 4 };
+	}
+
+	static auto CmpImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAddress(s_Registers.PC + 1);
+		PrintCommandArg(value, true);
+
+		std::int8_t result = s_Registers.*reg - value;
+		s_Flags[FlagNegative] = result & 0b1000'0000;
+		s_Flags[FlagZero] = result == 0;
+		s_Flags[FlagCarry] = result >= 0;
+
 
 		return OpValue{ 2, 2 };
 	}
@@ -900,6 +927,19 @@ namespace emu
 		return OpValue{ 2, 2 };
 	}
 
+
+	static auto OrIndirectIndexed(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadIndirectIndexed();
+
+		s_Registers.A = s_Registers.A | value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 6 };
+	}
+
 //	static auto StAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 //	{
 //		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
@@ -1006,31 +1046,42 @@ namespace emu
 			// BPL (BPL #rel) - branch if N=0 -
 			case 0x10:
 			{
+				PrintCommand("BPL");
 				return Branch(cpu, FlagNegative, false);
 			}
 	
+			// ORA (ORA ($xx),Y) -  NZ
+			case 0x11:
+			{
+				PrintCommand("ORA");
+				return OrIndirectIndexed(cpu, &Registers::A);
+			}
 	
 			// JMP (JMP $xxxx) -
 			case 0x20:
 			{
+				PrintCommand("JMP");
 				return JmpAbsolute(cpu);
 			}
 
 			// BIT zeropage (BIT $xx) - NVZ
 			case 0x24:
 			{
+				PrintCommand("BIT");
 				return BitZeropage(cpu);
 			}
 
 			// BIT absolute (BIT #$xx) - NVZ
 			case 0x2C:
 			{
+				PrintCommand("BIT");
 				return BitAbsolute(cpu);
 			}
 
 			// RTS
 			case 0x60:
 			{
+				PrintCommand("RTS");
 //				std::println("RTS!");
 				return ReturnFromSubroutine(cpu);
 			}
@@ -1038,6 +1089,7 @@ namespace emu
 			// SEI - 1-I
 			case 0x78:
 			{
+				PrintSingleCommand("SEI");
 				s_Flags[FlagInterrupt] = true;
 				return OpValue{ 1, 2 };
 			}
@@ -1045,42 +1097,49 @@ namespace emu
 			// STA zeropage (STA $xx) - A->M  -
 			case 0x85:
 			{
+				PrintCommand("STA");
 				return StZeropage(cpu, &Registers::A);
 			}
 
 			// STX zeropage (STX $xx) - X->M -
 			case 0x86:
 			{
+				PrintCommand("STX");
 				return StZeropage(cpu, &Registers::X);
 			}
 
 			// DEY - Y-1->Y NZ
 			case 0x88:
 			{
+				PrintCommand("DEY");
 				return Dec(&Registers::Y);
 			}
 
 			// STA absolute (STA $xxxx) - A->M -
 			case 0x8D:
 			{
+				PrintCommand("STA");
 				return StAbsolute(cpu, &Registers::A);
 			}
 
 			// STA indirect (STA ($xx),Y) - A->M -
 			case 0x91:
 			{
+				PrintCommand("STA");
 				return StaIndirectIndexed(cpu);
 			}
 
 			// STA abs, Y (STA #$xx,Y) -
 			case 0x99:
 			{
+				PrintCommand("STA");
 				return StaAbsoluteReg(cpu, &Registers::Y);
 			}
 			
 			// TXS - X->SP -
 			case 0x9A:
 			{
+				PrintSingleCommand("TXS");
 				s_Registers.SP = s_Registers.X;
 				return OpValue{ 1, 2 };
 			}
@@ -1088,18 +1147,21 @@ namespace emu
 			// LDY immediate (LDY #$xx) - M->Y NZ
 			case 0xA0:
 			{
+				PrintCommand("LDY");
 				return LdImmediate(cpu, &Registers::Y);
 			}
 
 			// LDX immediate (LDX #xxxx) - M->X NZ
 			case 0xA2:
 			{
+				PrintCommand("LDX");
 				return LdImmediate(cpu, &Registers::X);
 			}
 
 			// LDA immediate (LDA #$xx) - M->A  NZ
 			case 0xA9:
 			{
+				PrintCommand("LDA");
 				return LdImmediate(cpu, &Registers::A);
 			}
 
@@ -1107,66 +1169,84 @@ namespace emu
 			// TAX - A->X NZ
 			case 0xAA:
 			{
+				PrintCommand("TAX");
 				return Transfer(&Registers::A, &Registers::X);
 			}
 
 			// LDY absolute (LDY $xxxx) - M->Y NZ
 			case 0xAC:
 			{
+				PrintCommand("LDY");
 				return LdAbsolute(cpu, &Registers::Y);
 			}
 
 			// LDA absolute (LDA $xx) - M->A NZ
 			case 0xAD:
 			{
+				PrintCommand("LDA");
 				return LdAbsolute(cpu, &Registers::A);
 			}
 
 			// LDX absolute (LDX $xxxx) - M->X NZ
 			case 0xAE:
 			{
+				PrintCommand("LDX");
 				return LdAbsolute(cpu, &Registers::X);
 			}
 
 			// BCS (BCS #rel) - branch if C=1 -
 			case 0xB0:
 			{
+				PrintCommand("BCS");
 				return Branch(cpu, FlagCarry, true);
 			}
 
 			// LDA absolute X (LDA $xx,X) - M->A NZ
 			case 0xBD:
 			{
+				PrintCommand("LDA");
 				return LdAbsoluteReg(cpu, &Registers::A, &Registers::X, "X");
 			}
 
 			// CPY immediate (CPY #$xx) - A-M  NZC
 			case 0xC0:
 			{
+				PrintCommand("CPY");
 				return CmpImmediate(cpu, &Registers::Y);
 			}
 
 			// INY - Y+1->Y NZ
 			case 0xC8:
 			{
+				PrintCommand("INY");
 				return Inc(&Registers::Y);
 			}
 
 			// CMP immediate (CMP #$xx) - A-M  NZC
 			case 0xC9:
 			{
+				PrintCommand("CMP");
 				return CmpImmediate(cpu, &Registers::A);
 			}
 
 			// DEX implied - X-1->X NZ
 			case 0xCA:
 			{
+				PrintCommand("DEX");
 				return Dec(&Registers::X);
+			}
+
+			// CPY absolute (CMP $xxxx) - Y-M  NZC
+			case 0xCC:
+			{
+				PrintCommand("CPY");
+				return CmpAbsolute(cpu, &Registers::Y);
 			}
 
 			// BNE relative (BNE #xx)
 			case 0xD0:
 			{
+				PrintCommand("BNE");
 				return Branch(cpu, FlagZero, false);
 			}
 

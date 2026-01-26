@@ -28,6 +28,9 @@ namespace emu
 	{
 		std::uint8_t returnValue = m_Data.at(address);
 
+		if (address >= 0x2000 && address < 0x2FFF)
+			std::println("Reading from PPU ({:04x})", address);
+
 		if (address == 0x2002)
 			m_Data.at(address) &= 0x7FFF;
 
@@ -36,6 +39,9 @@ namespace emu
 
 	auto Memory::Write(std::uint16_t address, std::uint8_t value) -> void
 	{
+		if (address >= 0x2000 && address < 0x2FFF)
+			std::println("Writing to PPU ({:04x} = {:02x})", address, value);
+
 		m_Data.at(address) = value;
 	}
 
