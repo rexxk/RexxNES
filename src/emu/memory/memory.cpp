@@ -6,15 +6,16 @@
 namespace emu
 {
 
-	Memory::Memory()
+	Memory::Memory(size_t sizeKilobytes)
+		: m_Size(sizeKilobytes)
 	{
-		m_Data.resize(m_Size);
+		m_Data.resize(m_Size * 1024);
 		std::println("Memory size: {} kb", m_Size);
 	}
 
 	auto Memory::InstallROM(std::uint16_t address, std::span<std::uint8_t> romData) -> void
 	{
-		if (address + romData.size() > m_Size)
+		if (address + romData.size() > m_Size * 1024)
 		{
 			std::println("Memory::InstallROM - Not enough space for ROM in memory at location {}", address);
 			return;

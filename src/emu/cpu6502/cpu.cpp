@@ -537,14 +537,19 @@ namespace emu
 	{
 		std::int8_t relativePosition = cpu.ReadAddress(s_Registers.PC + 1);
 
+		s_Registers.PC += 2;
+
 		bool boundaryCrossed = ((s_Registers.PC + relativePosition) & 0xFF00) != (s_Registers.PC & 0xFF00);
 
 		if (s_Flags[flag] == condition)
 		{
-			s_Registers.PC += relativePosition;
+			if (relativePosition & 0x80)
+				s_Registers.PC -= relativePosition;
+			else
+				s_Registers.PC += relativePosition;
 		}
 
-		return OpValue{ 2, static_cast<std::uint8_t>(2 + (boundaryCrossed ? 2 : 1)) };
+		return OpValue{ 0, static_cast<std::uint8_t>(2 + (boundaryCrossed ? 2 : 1)) };
 	}
 
 	static auto Bit(std::uint8_t value) -> void
@@ -1196,9 +1201,10 @@ namespace emu
 
 		if (startVector == 0)
 		{
-			std::uint16_t resetVector = (m_Memory.Read(s_Registers.PC + 1) << 8) + m_Memory.Read(s_Registers.PC);
+//			std::uint16_t resetVector = (m_Memory.Read(s_Registers.PC + 1) << 8) + m_Memory.Read(s_Registers.PC);
 //			std::println("Reset vector: {:04x}", resetVector);
-			s_Registers.PC = resetVector;
+			auto resetVector = 0xFFFC;
+			s_Registers.PC = m_Memory.Read(resetVector + 1) << 8 + m_Memory.Read(resetVector);
 		}
 		else
 			s_Registers.PC = startVector;

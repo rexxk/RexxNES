@@ -12,7 +12,7 @@ namespace emu
 	class Memory
 	{
 	public:
-		Memory();
+		explicit Memory(size_t sizeKilobytes);
 
 		auto InstallROM(std::uint16_t address, std::span<std::uint8_t> romData) -> void;
 
@@ -20,7 +20,7 @@ namespace emu
 		auto Write(std::uint16_t address, std::uint8_t value) -> void;
 
 	private:
-		const size_t m_Size{ 64 * 1024 };
+		const size_t m_Size{ };
 
 		std::vector<std::uint8_t> m_Data{};
 	};

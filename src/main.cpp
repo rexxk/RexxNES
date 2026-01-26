@@ -88,12 +88,12 @@ auto main() -> int
 
 	std::println("Mapper ID#: {}", mapperID);
 
-	emu::Memory cpuMemory{};
+	emu::Memory cpuMemory{64};
 	cpuMemory.InstallROM(0x8000, programRom);
-	cpuMemory.InstallROM(0x0000, charRom);
+//	cpuMemory.InstallROM(0x0000, charRom);
 
-//	emu::Memory ppuMemory{};
-//	ppuMemory.InstallROM(0x0000, charRom);
+	emu::Memory ppuMemory{32};
+	ppuMemory.InstallROM(0x0000, charRom);
 
 	emu::CPU cpu{cpuMemory};
 
