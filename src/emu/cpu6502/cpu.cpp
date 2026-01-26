@@ -549,7 +549,7 @@ namespace emu
 
 	static auto Bit(std::uint8_t value) -> void
 	{
-		s_Flags[FlagZero] = s_Registers.A & value;
+		s_Flags[FlagZero] = (s_Registers.A & value) == 0;
 		s_Flags[FlagOverflow] = value & 0b0100'0000;
 		s_Flags[FlagNegative] = value & 0b1000'0000;
 	}
@@ -730,10 +730,10 @@ namespace emu
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
 
-		auto result = s_Registers.*reg - value;
+		std::int8_t result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagCarry] = static_cast<int8_t>(result) >= 0;
+		s_Flags[FlagCarry] = result >= 0;
 
 		return OpValue{ 2, 2 };
 	}

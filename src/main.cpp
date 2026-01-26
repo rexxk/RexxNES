@@ -84,11 +84,18 @@ auto main() -> int
 
 	fs.close();
 
-	emu::Memory memory{};
-	memory.InstallROM(0x8000, programRom);
-	memory.InstallROM(0x0000, charRom);
+	std::uint8_t mapperID = (romHeader.Flags2 & 0xF0) + ((romHeader.Flags1 & 0xF0) >> 4);
 
-	emu::CPU cpu{memory};
+	std::println("Mapper ID#: {}", mapperID);
+
+	emu::Memory cpuMemory{};
+	cpuMemory.InstallROM(0x8000, programRom);
+	cpuMemory.InstallROM(0x0000, charRom);
+
+//	emu::Memory ppuMemory{};
+//	ppuMemory.InstallROM(0x0000, charRom);
+
+	emu::CPU cpu{cpuMemory};
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 //	cpu.Execute();
