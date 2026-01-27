@@ -147,10 +147,23 @@ namespace emu
 
 	static auto JmpAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
+		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
+		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		PrintCommandArg(address);
+
+		s_Registers.PC = address;
+
+		return OpValue{ 0, 3 };
+	}
+
+	static auto JsrAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF));
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 3) & 0xFF00) >> 8));
 
-//		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
+		//		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
 
 		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
 		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
@@ -285,6 +298,20 @@ namespace emu
 	}
 
 
+	static auto AndImmediate(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAddress(s_Registers.PC + 1);
+
+		PrintCommandArg(value);
+
+		s_Registers.A = s_Registers.A & value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 2 };
+	}
+
 
 	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
@@ -292,7 +319,7 @@ namespace emu
 
 //		PrintCommandArg(value);
 
-		std::int8_t result = s_Registers.*reg - value;
+		std::uint8_t result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
 		s_Flags[FlagCarry] = result >= 0;
@@ -338,6 +365,22 @@ namespace emu
 		return OpValue{ 1, 2 };
 	}
 
+	static auto IncAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
+		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		auto value = cpu.ReadAddress(address);
+		value++;
+		cpu.WriteAddress(address, value);
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 3, 6 };
+	}
+
 	static auto LdAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAbsoluteAddress();
@@ -380,6 +423,19 @@ namespace emu
 		return OpValue{ 2, 2 };
 	}
 
+	static auto OrImmediate(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAddress(s_Registers.PC + 1);
+
+		PrintCommandArg(value);
+
+		s_Registers.A = s_Registers.A | value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 2 };
+	}
 
 	static auto OrIndirectIndexed(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
@@ -460,6 +516,13 @@ namespace emu
 				return Branch(cpu, FlagNegative, false);
 			}
 	
+			// ORA (ORA #$xx) - NZ
+			case 0x09:
+			{
+				PrintCommand("ORA");
+				return OrImmediate(cpu);
+			}
+
 			// ORA (ORA ($xx),Y) -  NZ
 			case 0x11:
 			{
@@ -467,11 +530,11 @@ namespace emu
 				return OrIndirectIndexed(cpu, &Registers::A);
 			}
 	
-			// JMP (JMP $xxxx) -
+			// JSR (JSR $xxxx) -
 			case 0x20:
 			{
-				PrintCommand("JMP");
-				return JmpAbsolute(cpu);
+				PrintCommand("JSR");
+				return JsrAbsolute(cpu);
 			}
 
 			// BIT zeropage (BIT $xx) - NVZ
@@ -481,11 +544,25 @@ namespace emu
 				return BitZeropage(cpu);
 			}
 
+			// AND immediate (AND #$xx) - NZ
+			case 0x29:
+			{
+				PrintCommand("AND");
+				return AndImmediate(cpu);
+			}
+
 			// BIT absolute (BIT #$xx) - NVZ
 			case 0x2C:
 			{
 				PrintCommand("BIT");
 				return BitAbsolute(cpu);
+			}
+
+			// JMP absolute (JMP $xxxx)
+			case 0x4C:
+			{
+				PrintCommand("JMP");
+				return JmpAbsolute(cpu);
 			}
 
 			// RTS
@@ -525,6 +602,12 @@ namespace emu
 				return Dec(&Registers::Y);
 			}
 
+			// TXA
+			case 0x8A:
+			{
+				PrintSingleCommand("TXA");
+				return Transfer(&Registers::X, &Registers::A);
+			}
 			// STA absolute (STA $xxxx) - A->M -
 			case 0x8D:
 			{
@@ -664,7 +747,7 @@ namespace emu
 			case 0xD0:
 			{
 				PrintCommand("BNE");
-				return Branch(cpu, FlagZero, true);
+				return Branch(cpu, FlagZero, false);
 			}
 
 			// CLD - 0->D
@@ -681,7 +764,14 @@ namespace emu
 				PrintCommand("CPX");
 				return CmpImmediate(cpu, &Registers::X);
 			}
-	
+
+			// INC absolute (INC $xxxx)
+			case 0xEE:
+			{
+				PrintCommand("INC");
+				return IncAbsolute(cpu);
+			}
+
 			default:
 				std::println("Invalid opcode: {:02x} @{:04x}", opCode, s_Registers.PC);
 				return std::nullopt;
