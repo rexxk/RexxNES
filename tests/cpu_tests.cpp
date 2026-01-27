@@ -172,7 +172,6 @@ TEST(CpuTests, CMP_Immediate)
 	emu::Memory memory{ 16 };
 	emu::CPU cpu(memory);
 	
-	//	std::vector<uint8_t> program{ 0xA0, 0x10, 0x88 };
 	{
 		std::vector<uint8_t> program{ 0xA9, 0x45, 0xC9, 0x85 };
 		memory.InstallROM(0x1000, program);

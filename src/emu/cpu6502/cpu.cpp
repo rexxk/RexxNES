@@ -1,5 +1,6 @@
 #include "emu/cpu6502/cpu.h"
 
+#include <atomic>
 #include <bitset>
 #include <chrono>
 #include <optional>
@@ -34,6 +35,8 @@ namespace emu
 	static Registers s_Registers{};
 	static std::bitset<8> s_Flags{};
 
+	static std::atomic<bool> s_NMI{ false };
+	static std::atomic<bool> s_IRQ{ false };
 
 	struct OpValue
 	{
@@ -104,6 +107,17 @@ namespace emu
 #endif
 	}
 
+	static auto Break(CPU& cpu) -> std::optional<OpValue>
+	{
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
+
+		s_Flags[FlagInterrupt] = true;
+
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
+
+		return OpValue{ 1, 7 };
+	}
 
 	static auto Branch(CPU& cpu, const std::uint8_t flag, bool condition) -> std::optional<OpValue>
 	{
@@ -510,11 +524,11 @@ namespace emu
 	{
 		switch (opCode)
 		{
-			// BPL (BPL #rel) - branch if N=0 -
-			case 0x10:
+			// BRK
+			case 0x00:
 			{
-				PrintCommand("BPL");
-				return Branch(cpu, FlagNegative, false);
+				PrintSingleCommand("BRK");
+				return Break(cpu);
 			}
 	
 			// ORA (ORA #$xx) - NZ
@@ -524,6 +538,13 @@ namespace emu
 				return OrImmediate(cpu);
 			}
 
+			// BPL (BPL #rel) - branch if N=0 -
+			case 0x10:
+			{
+				PrintCommand("BPL");
+				return Branch(cpu, FlagNegative, false);
+			}
+
 			// ORA (ORA ($xx),Y) -  NZ
 			case 0x11:
 			{
@@ -531,6 +552,14 @@ namespace emu
 				return OrIndirectIndexed(cpu, &Registers::A);
 			}
 	
+			// CLC
+			case 0x18:
+			{
+				PrintSingleCommand("CLC");
+				s_Flags[FlagCarry] = false;
+				return OpValue{ 1, 2 };
+			}
+
 			// JSR (JSR $xxxx) -
 			case 0x20:
 			{
@@ -827,6 +856,26 @@ namespace emu
 			LARGE_INTEGER startCount{};
 			QueryPerformanceCounter(&startCount);
 
+			if (s_NMI.load())
+			{
+				s_NMI.store(false);
+				std::println("NMI called");
+
+				Break(*this);
+				s_Registers.PC = 0xFFFA;
+
+				JmpAbsolute(*this);
+			}
+			else if (s_IRQ.load())
+			{
+				s_IRQ.store(false);
+				std::println("IRQ called");
+
+				Break(*this);
+				s_Registers.PC = 0xFFFE;
+			}
+
+
 			auto maybeExecuted = ExecuteOpcode(*this, m_Memory.Read(s_Registers.PC));
 
 			if (!maybeExecuted)
@@ -836,8 +885,12 @@ namespace emu
 
 			cycles += maybeExecuted->ClockCycles;
 
-//			if (cycles > 1000)
+			if (cycles >= 3'000'000 && cycles < 3'000'005)
+			{
+				s_NMI.store(true);
+
 //				break;
+			}
 
 			std::int64_t countsElapsed{};
 
