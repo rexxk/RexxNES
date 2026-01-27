@@ -29,10 +29,12 @@ namespace emu
 		std::uint8_t returnValue = m_Data.at(address);
 
 		if (address >= 0x2000 && address < 0x2FFF)
-			std::println("Reading from PPU ({:04x})", address);
+			std::println("Reading from PPU ({:04x} : {:02x})", address, m_Data.at(address));
 
-		if (address == 0x2002)
-			m_Data.at(address) &= 0x7FFF;
+		if (address == 0x2002 && m_Data.at(address) & 0x80)
+			m_Data.at(address) &= 0x7F;
+		else if (address == 0x2002)
+			m_Data.at(address) |= 0x80;
 
 		return returnValue;
 	}
