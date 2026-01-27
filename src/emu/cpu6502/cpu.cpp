@@ -337,6 +337,7 @@ namespace emu
 
 		std::uint8_t result = s_Registers.*reg - value;
 
+//		s_Flags[FlagNegative] = static_cast<std::int8_t>(result) & 0b1000'0000;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
 		s_Flags[FlagCarry] = result >= 0;
@@ -857,6 +858,11 @@ namespace emu
 	auto CPU::GetRegisters() -> Registers&
 	{
 		return s_Registers;
+	}
+
+	auto CPU::GetFlags() -> const std::uint8_t
+	{
+		return static_cast<std::uint8_t>(s_Flags.to_ulong());
 	}
 
 }

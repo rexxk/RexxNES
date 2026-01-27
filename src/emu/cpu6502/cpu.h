@@ -26,6 +26,7 @@ namespace emu
 		explicit CPU(Memory& memory);
 
 		auto GetRegisters() -> Registers&;
+		auto GetFlags() -> const std::uint8_t;
 
 		auto Execute(std::uint16_t startVector = 0) -> void;
 //		auto Execute(std::span<std::uint8_t> program, const std::uint16_t memoryLocation) -> void;
