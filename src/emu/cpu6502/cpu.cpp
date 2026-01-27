@@ -466,6 +466,18 @@ namespace emu
 		return OpValue{ 2, 6 };
 	}
 
+	static auto RotateLeftAbsoluteX(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAbsoluteAddressRegister(&Registers::X, "X");
+		s_Flags[FlagCarry] = (value & 0x80) == true;
+
+		std::uint8_t rotatedValue = ((value & 0x7F) << 1) + s_Flags[FlagCarry];
+
+		errorValue - needs work here on how to store value and so on.
+
+		return OpValue{ 3, 7 };
+	}
+
 	static auto StAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		cpu.WriteAbsoluteAddress(s_Registers.*reg);
@@ -586,6 +598,13 @@ namespace emu
 			{
 				PrintCommand("BIT");
 				return BitAbsolute(cpu);
+			}
+
+			// ROL absolute,X (ROL $xxxx,X) - NZC
+			case 0x3E:
+			{
+				PrintCommand("ROL");
+				return RotateLeftAbsoluteX(cpu);
 			}
 
 			// JMP absolute (JMP $xxxx)
@@ -856,7 +875,7 @@ namespace emu
 			LARGE_INTEGER startCount{};
 			QueryPerformanceCounter(&startCount);
 
-			if (s_NMI.load())
+			if (s_NMI.load() && !s_Flags[FlagInterrupt])
 			{
 				s_NMI.store(false);
 				std::println("NMI called");
@@ -866,13 +885,15 @@ namespace emu
 
 				JmpAbsolute(*this);
 			}
-			else if (s_IRQ.load())
+			else if (s_IRQ.load() && !s_Flags[FlagInterrupt])
 			{
 				s_IRQ.store(false);
 				std::println("IRQ called");
 
 				Break(*this);
 				s_Registers.PC = 0xFFFE;
+
+				JmpAbsolute(*this);
 			}
 
 
