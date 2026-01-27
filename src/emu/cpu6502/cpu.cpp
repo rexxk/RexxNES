@@ -18,7 +18,7 @@ using namespace std::chrono_literals;
 namespace emu
 {
 
-#define PRINT_COMMANDS	1
+#define PRINT_COMMANDS	0
 
 	
 	constexpr std::uint8_t FlagCarry = 0;
@@ -160,8 +160,8 @@ namespace emu
 
 	static auto JsrAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF));
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 3) & 0xFF00) >> 8));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF));
 
 		//		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
 
@@ -178,8 +178,8 @@ namespace emu
 
 	static auto ReturnFromSubroutine(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
 		auto addressLow = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
 //		std::println("RTS to 0x{:04x}", address);
