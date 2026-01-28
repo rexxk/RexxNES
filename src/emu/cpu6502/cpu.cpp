@@ -220,6 +220,15 @@ namespace emu
 	}
 
 
+	auto CPU::FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t
+	{
+		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
+		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
+
+		return address;
+	}
+
 	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
 	{
 		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
@@ -413,8 +422,6 @@ namespace emu
 
 		s_Registers.*reg = value;
 
-//		PrintCommandArgAbsolute(value, regString);
-
 		s_Flags[FlagNegative] = value & 0b1000'0000;
 		s_Flags[FlagZero] = value == 0;
 
@@ -423,7 +430,6 @@ namespace emu
 		return OpValue{ 3, static_cast<std::uint8_t>(4 + boundaryCrossed ? 1 : 0) };
 	}
 
-	// TODO: Here is a thing that differs, but this solution seems to be the correct one...
 	static auto LdImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
@@ -436,6 +442,32 @@ namespace emu
 		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 2, 2 };
+	}
+
+	static auto LdaIndirectIndex(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadIndirectIndexed();
+
+		bool boundaryCrossed = (((s_Registers.PC + s_Registers.A) & 0xFF00) != (s_Registers.PC & 0xFF00));
+
+		s_Registers.A = value;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 2, static_cast<std::uint8_t>(5 + (boundaryCrossed == true) ? 1 : 0) };
+	}
+
+	static auto LogicalShiftRight(CPU& cpu) -> std::optional<OpValue>
+	{
+		s_Flags[FlagCarry] = s_Registers.A & 0x01;
+
+		s_Registers.A = s_Registers.A >> 1;
+
+		s_Flags[FlagNegative] = false;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 1, 2 };
 	}
 
 	static auto OrImmediate(CPU& cpu) -> std::optional<OpValue>
@@ -466,14 +498,50 @@ namespace emu
 		return OpValue{ 2, 6 };
 	}
 
+	static auto PullFromStack(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		s_Registers.*reg = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+
+		return OpValue{ 1, 4 };
+	}
+
+	static auto PullSRFromStack(CPU& cpu) -> std::optional<OpValue>
+	{
+		s_Flags = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+
+		return OpValue{ 1, 4 };
+	}
+
+	static auto PushSRToStack(CPU& cpu) -> std::optional<OpValue>
+	{
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
+
+		return OpValue{ 1, 3 };
+	}
+
+	static auto PushToStack(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, s_Registers.*reg);
+
+		return OpValue{ 1, 3 };
+	}
+
 	static auto RotateLeftAbsoluteX(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(&Registers::X, "X");
-		s_Flags[FlagCarry] = (value & 0x80) == true;
+		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
+		PrintCommandArgAbsolute(address, "X");
 
-		std::uint8_t rotatedValue = ((value & 0x7F) << 1) + s_Flags[FlagCarry];
+		std::uint16_t value = (std::uint8_t(0x00 << 8) + cpu.ReadAddress(address)) << 1;
+		bool carryFlag = (value & 0x100);
+		value += carryFlag;
 
-		errorValue - needs work here on how to store value and so on.
+		s_Flags[FlagCarry] = carryFlag;
+		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
+		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+
+		//errorValue - needs work here on how to store value and so on.
+
+		cpu.WriteAddress(address, static_cast<std::uint8_t>(value));
 
 		return OpValue{ 3, 7 };
 	}
@@ -543,6 +611,13 @@ namespace emu
 				return Break(cpu);
 			}
 	
+			// PHP
+			case 0x08:
+			{
+				PrintSingleCommand("PHP");
+				return PushSRToStack(cpu);
+			}
+
 			// ORA (ORA #$xx) - NZ
 			case 0x09:
 			{
@@ -586,6 +661,13 @@ namespace emu
 				return BitZeropage(cpu);
 			}
 
+			// PLP
+			case 0x28:
+			{
+				PrintSingleCommand("PLP");
+				return PullSRFromStack(cpu);
+			}
+
 			// AND immediate (AND #$xx) - NZ
 			case 0x29:
 			{
@@ -607,6 +689,20 @@ namespace emu
 				return RotateLeftAbsoluteX(cpu);
 			}
 
+			// PHA implied (PHA)
+			case 0x48:
+			{
+				PrintSingleCommand("PHA");
+				return PushToStack(cpu, &Registers::A);
+			}
+
+			// LSR A (LSR) - (N0)ZC
+			case 0x4A:
+			{
+				PrintSingleCommand("LSR");
+				return LogicalShiftRight(cpu);
+			}
+
 			// JMP absolute (JMP $xxxx)
 			case 0x4C:
 			{
@@ -620,6 +716,13 @@ namespace emu
 				PrintSingleCommand("RTS");
 //				std::println("RTS!");
 				return ReturnFromSubroutine(cpu);
+			}
+
+			// PLA
+			case 0x68:
+			{
+				PrintSingleCommand("PLA");
+				return PullFromStack(cpu, &Registers::A);
 			}
 
 			// SEI - 1-I
@@ -693,6 +796,13 @@ namespace emu
 				return OpValue{ 1, 2 };
 			}
 
+			// STA absolute X (STA $xx, X) - A->M
+			case 0x9D:
+			{
+				PrintCommand("STA");
+				return StaAbsoluteReg(cpu, &Registers::X);
+			}
+
 			// LDY immediate (LDY #$xx) - M->Y NZ
 			case 0xA0:
 			{
@@ -750,11 +860,25 @@ namespace emu
 				return Branch(cpu, FlagCarry, true);
 			}
 
+			// LDA indirect, Y (LDA $xx),Y - NZ
+			case 0xB1:
+			{
+				PrintCommand("LDA");
+				return LdaIndirectIndex(cpu);
+			}
+
 			// LDA absolute X (LDA $xx,X) - M->A NZ
 			case 0xBD:
 			{
 				PrintCommand("LDA");
 				return LdAbsoluteReg(cpu, &Registers::A, &Registers::X, "X");
+			}
+
+			// LDX absolute Y (LDX $xx,Y) - M->Z NZ
+			case 0xBE:
+			{
+				PrintCommand("LDX");
+				return LdAbsoluteReg(cpu, &Registers::X, &Registers::Y, "Y");
 			}
 
 			// CPY immediate (CPY #$xx) - A-M  NZC
@@ -875,13 +999,14 @@ namespace emu
 			LARGE_INTEGER startCount{};
 			QueryPerformanceCounter(&startCount);
 
-			if (s_NMI.load() && !s_Flags[FlagInterrupt])
+			if (s_NMI.load())// && !s_Flags[FlagInterrupt])
 			{
 				s_NMI.store(false);
 				std::println("NMI called");
 
 				Break(*this);
-				s_Registers.PC = 0xFFFA;
+				// PC = 0xFFFA - 1
+				s_Registers.PC = 0xFFF9;
 
 				JmpAbsolute(*this);
 			}
@@ -891,7 +1016,8 @@ namespace emu
 				std::println("IRQ called");
 
 				Break(*this);
-				s_Registers.PC = 0xFFFE;
+				// PC = 0xFFFE - 1
+				s_Registers.PC = 0xFFFD;
 
 				JmpAbsolute(*this);
 			}
