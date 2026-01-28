@@ -229,6 +229,23 @@ namespace emu
 		return address;
 	}
 
+	auto CPU::FetchAddress() -> std::uint16_t
+	{
+		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
+		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		std::uint16_t address = (memoryHigh << 8) + memoryLow;
+
+		return address;
+	}
+
+	auto CPU::FetchZeropageAddress() -> std::uint16_t
+	{
+		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
+		std::uint16_t address = (0x00 << 8) + memoryLow;
+
+		return address;
+	}
+
 	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
 	{
 		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
@@ -321,6 +338,23 @@ namespace emu
 	}
 
 
+	static auto AndAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+
+		PrintCommandArgAbsolute(value, regString);
+
+		s_Registers.A = s_Registers.A & value;
+
+		// TODO: Add boundary check
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 3, 4 };
+	}
+
+
 	static auto AndImmediate(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
@@ -379,6 +413,21 @@ namespace emu
 		return OpValue{ 1, 2 };
 	}
 
+	static auto DecAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchAddress();
+		auto value = cpu.ReadAddress(address);
+
+		value--;
+
+		cpu.WriteAddress(address, value);
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 3, 6 };
+	}
+
 	static auto Inc(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = s_Registers.*reg + 1;
@@ -403,6 +452,20 @@ namespace emu
 		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 3, 6 };
+	}
+
+	static auto IncZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchZeropageAddress();
+		auto value = cpu.ReadZeropageAddress();
+		value++;
+
+		cpu.WriteAddress(address, value);
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 2, 5 };
 	}
 
 	static auto LdAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
@@ -498,6 +561,20 @@ namespace emu
 		return OpValue{ 2, 6 };
 	}
 
+	static auto OrZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddress();
+
+		PrintCommandArg(value);
+
+		s_Registers.A = s_Registers.A | value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 3 };
+	}
+
 	static auto PullFromStack(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
@@ -526,6 +603,21 @@ namespace emu
 		return OpValue{ 1, 3 };
 	}
 
+	static auto RotateLeft(CPU& cpu) -> std::optional<OpValue>
+	{
+		std::uint16_t value = s_Registers.A << 1;
+		bool carryFlag = (value & 0x100);
+		value += carryFlag;
+
+		s_Flags[FlagCarry] = carryFlag;
+		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
+		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+
+		s_Registers.A = static_cast<std::uint8_t>(value);
+
+		return OpValue{ 1, 2 };
+	}
+
 	static auto RotateLeftAbsoluteX(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
@@ -539,11 +631,25 @@ namespace emu
 		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
 		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
 
-		//errorValue - needs work here on how to store value and so on.
-
 		cpu.WriteAddress(address, static_cast<std::uint8_t>(value));
 
 		return OpValue{ 3, 7 };
+	}
+
+	static auto SbcAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	{
+		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
+
+		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+		
+		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
+
+		s_Flags[FlagZero] = result == 0;
+		s_Flags[FlagNegative] = result & 0x80;
+		s_Flags[FlagCarry] = result >= 0;
+		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+
+		return OpValue{ 3, static_cast<std::uint8_t>(4 + boundaryCrossed ? 1 : 0) };
 	}
 
 	static auto StAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
@@ -611,6 +717,13 @@ namespace emu
 				return Break(cpu);
 			}
 	
+			// ORA zeropage (ORA $xx) - A OR M -> A - NZ
+			case 0x05:
+			{
+				PrintCommand("ORA");
+				return OrZeropage(cpu);
+			}
+
 			// PHP
 			case 0x08:
 			{
@@ -675,11 +788,33 @@ namespace emu
 				return AndImmediate(cpu);
 			}
 
+			// ROL accumulator (ROL) - NZC
+			case 0x2A:
+			{
+				PrintSingleCommand("ROL");
+				return RotateLeft(cpu);
+			}
+
 			// BIT absolute (BIT #$xx) - NVZ
 			case 0x2C:
 			{
 				PrintCommand("BIT");
 				return BitAbsolute(cpu);
+			}
+
+			// SEC implied (SEC)
+			case 0x38:
+			{
+				PrintSingleCommand("SEC");
+				s_Flags[FlagCarry] = true;
+				return OpValue{ 1, 2 };
+			}
+
+			// AND absolute, X (AND $xxxx,X) - A AND M -> A - NZ
+			case 0x3D:
+			{
+				PrintCommand("AND");
+				return AndAbsoluteOffset(cpu, &Registers::X, "X");
 			}
 
 			// ROL absolute,X (ROL $xxxx,X) - NZC
@@ -916,6 +1051,13 @@ namespace emu
 				return CmpAbsolute(cpu, &Registers::Y);
 			}
 
+			// DEC absolute (DEC $xxxx) - M-1->M  NZ
+			case 0xCE:
+			{
+				PrintCommand("DEC");
+				return DecAbsolute(cpu);
+			}
+
 			// BNE relative (BNE #xx)
 			case 0xD0:
 			{
@@ -938,11 +1080,39 @@ namespace emu
 				return CmpImmediate(cpu, &Registers::X);
 			}
 
+			// INC zeropage (INC $xx)
+			case 0xE6:
+			{
+				PrintCommand("INC");
+				return IncZeropage(cpu);
+			}
+
+			// INX implied
+			case 0xE8:
+			{
+				PrintSingleCommand("INX");
+				return Inc(&Registers::X);
+			}
+
 			// INC absolute (INC $xxxx)
 			case 0xEE:
 			{
 				PrintCommand("INC");
 				return IncAbsolute(cpu);
+			}
+
+			// BEQ relative (BEQ #xx)
+			case 0xF0:
+			{
+				PrintCommand("BEQ");
+				return Branch(cpu, FlagZero, true);
+			}
+
+			// SBC absolute, Y (SBC $xxxx,Y) - A - M - C' -> A  - NZCV
+			case 0xF9:
+			{
+				PrintCommand("SBC");
+				return SbcAbsoluteOffset(cpu, &Registers::Y, "Y");
 			}
 
 			default:

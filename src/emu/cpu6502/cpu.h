@@ -35,6 +35,8 @@ namespace emu
 		auto WriteAddress(std::uint16_t address, std::uint8_t value) -> void;
 
 		auto FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t;
+		auto FetchAddress() -> std::uint16_t;
+		auto FetchZeropageAddress() -> std::uint16_t;
 		auto ReadAbsoluteAddress() -> std::uint8_t;
 		auto ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg, std::string_view regString) -> std::uint8_t;
 		auto ReadIndirectIndexed() -> std::uint8_t;
