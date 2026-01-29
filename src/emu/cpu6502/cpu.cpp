@@ -109,8 +109,11 @@ namespace emu
 
 	static auto Break(CPU& cpu) -> std::optional<OpValue>
 	{
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
+//		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
+//		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
+
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC) & 0xFF00) >> 8));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC) & 0xFF));
 
 		s_Flags[FlagInterrupt] = true;
 
@@ -170,6 +173,26 @@ namespace emu
 		s_Registers.PC = address;
 
 		return OpValue{ 0, 3 };
+	}
+
+	static auto JmpIndirect(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
+		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+#if PRINT_COMMANDS
+		std::println("   $({:04x})", address);
+#endif
+
+		auto jumpAddressLow = cpu.ReadAddress(address);
+		auto jumpAddressHigh = cpu.ReadAddress(address + 1);
+		std::uint16_t jumpAddress = (jumpAddressHigh << 8) + jumpAddressLow;
+
+		s_Registers.PC = jumpAddress;
+
+		// TODO: fix cycles
+		return OpValue{ 0, 5 };
 	}
 
 	static auto JsrAbsolute(CPU& cpu) -> std::optional<OpValue>
@@ -369,6 +392,14 @@ namespace emu
 		return OpValue{ 2, 2 };
 	}
 
+	static auto AslAccumulator(CPU& cpu) -> std::optional<OpValue>
+	{
+		s_Flags[FlagCarry] = s_Registers.A & 0x80;
+		s_Registers.A <<= 1;
+
+		return OpValue{ 1, 2 };
+	}
+
 
 	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
@@ -426,6 +457,21 @@ namespace emu
 		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 3, 6 };
+	}
+
+	static auto EorZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchZeropageAddress();
+		auto value = cpu.ReadZeropageAddress();
+
+		PrintCommandArg(address);
+
+		s_Registers.A = s_Registers.A ^ value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 3 };
 	}
 
 	static auto Inc(std::uint8_t Registers::* reg) -> std::optional<OpValue>
@@ -521,6 +567,21 @@ namespace emu
 		return OpValue{ 2, static_cast<std::uint8_t>(5 + (boundaryCrossed == true) ? 1 : 0) };
 	}
 
+	static auto LdZeropage(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchZeropageAddress();
+		auto value = cpu.ReadZeropageAddress();
+
+		PrintCommandArg(address);
+
+		s_Registers.*reg = value;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 2, 3 };
+	}
+
 	static auto LogicalShiftRight(CPU& cpu) -> std::optional<OpValue>
 	{
 		s_Flags[FlagCarry] = s_Registers.A & 0x01;
@@ -603,6 +664,20 @@ namespace emu
 		return OpValue{ 1, 3 };
 	}
 
+	static auto ReturnFromInterrupt(CPU& cpu) -> std::optional<OpValue>
+	{
+		PullSRFromStack(cpu);
+		auto addressLow = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		std::println(" RTI ${:04x}", address);
+
+		s_Registers.PC = address;
+
+		return OpValue{ 0, 6 };
+	}
+
 	static auto RotateLeft(CPU& cpu) -> std::optional<OpValue>
 	{
 		std::uint16_t value = s_Registers.A << 1;
@@ -628,6 +703,26 @@ namespace emu
 		value += carryFlag;
 
 		s_Flags[FlagCarry] = carryFlag;
+		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
+		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+
+		cpu.WriteAddress(address, static_cast<std::uint8_t>(value));
+
+		return OpValue{ 3, 7 };
+	}
+
+	static auto RotateRightAbsoluteX(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
+		PrintCommandArgAbsolute(address, "X");
+
+		auto value = cpu.ReadAddress(address);
+		bool carry = s_Flags[FlagCarry];
+		bool newCarryFlag = value & 0x01;
+
+		value = (value >> 1) + (static_cast<std::uint8_t>(carry) & 0x01 << 7);
+
+		s_Flags[FlagCarry] = newCarryFlag;
 		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
 		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
 
@@ -738,6 +833,13 @@ namespace emu
 				return OrImmediate(cpu);
 			}
 
+			// ASL accumulator (ASL) - NZC
+			case 0x0a:
+			{
+				PrintSingleCommand("ASL");
+				return AslAccumulator(cpu);
+			}
+
 			// BPL (BPL #rel) - branch if N=0 -
 			case 0x10:
 			{
@@ -824,6 +926,20 @@ namespace emu
 				return RotateLeftAbsoluteX(cpu);
 			}
 
+			// RTI
+			case 0x40:
+			{
+				PrintSingleCommand("RTI");
+				return ReturnFromInterrupt(cpu);
+			}
+
+			// EOR zeropage (EOR $xx) - A EOR M -> A - NZ
+			case 0x45:
+			{
+				PrintCommand("EOR");
+				return EorZeropage(cpu);
+			}
+
 			// PHA implied (PHA)
 			case 0x48:
 			{
@@ -860,12 +976,26 @@ namespace emu
 				return PullFromStack(cpu, &Registers::A);
 			}
 
+			// JMP indirect (JMP $(xxxx))
+			case 0x6C:
+			{
+				PrintCommand("JMP");
+				return JmpIndirect(cpu);
+			}
+
 			// SEI - 1-I
 			case 0x78:
 			{
 				PrintSingleCommand("SEI");
 				s_Flags[FlagInterrupt] = true;
 				return OpValue{ 1, 2 };
+			}
+
+			// ROR absolute,X (ROR $xxxx,X) - C-> x -> C - NZC
+			case 0x7E:
+			{
+				PrintCommand("ROR");
+				return RotateRightAbsoluteX(cpu);
 			}
 
 			// STA zeropage (STA $xx) - A->M  -
@@ -950,6 +1080,20 @@ namespace emu
 			{
 				PrintCommand("LDX");
 				return LdImmediate(cpu, &Registers::X);
+			}
+
+			// LDA zeropage (LDA $xx) - M->A - NZ
+			case 0xA5:
+			{
+				PrintCommand("LDA");
+				return LdZeropage(cpu, &Registers::A);
+			}
+
+			// TAY
+			case 0xA8:
+			{
+				PrintSingleCommand("TAY");
+				return Transfer(&Registers::A, &Registers::Y);
 			}
 
 			// LDA immediate (LDA #$xx) - M->A  NZ
@@ -1172,7 +1316,7 @@ namespace emu
 			if (s_NMI.load())// && !s_Flags[FlagInterrupt])
 			{
 				s_NMI.store(false);
-				std::println("NMI called");
+				std::println("NMI called - PC: ${:04x}", s_Registers.PC);
 
 				Break(*this);
 				// PC = 0xFFFA - 1
