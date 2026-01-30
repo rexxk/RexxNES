@@ -594,6 +594,19 @@ namespace emu
 		return OpValue{ 1, 2 };
 	}
 
+	static auto OrAbsoluteRegister(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+	
+		s_Registers.A = s_Registers.A | value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		// TODO: Page boundary check and cycle correction
+		return OpValue{ 3, 4 };
+	}
+
 	static auto OrImmediate(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
@@ -860,6 +873,13 @@ namespace emu
 				PrintSingleCommand("CLC");
 				s_Flags[FlagCarry] = false;
 				return OpValue{ 1, 2 };
+			}
+
+			// ORA absolute,Y (ORA $xxxx,Y) - A OR M -> A - NZ
+			case 0x19:
+			{
+				PrintCommand("ORA");
+				return OrAbsoluteRegister(cpu, &Registers::Y, "Y");
 			}
 
 			// JSR (JSR $xxxx) -
@@ -1313,7 +1333,7 @@ namespace emu
 			LARGE_INTEGER startCount{};
 			QueryPerformanceCounter(&startCount);
 
-			if (s_NMI.load())// && !s_Flags[FlagInterrupt])
+			if (s_NMI.load() && !s_Flags[FlagInterrupt])
 			{
 				s_NMI.store(false);
 				std::println("NMI called - PC: ${:04x}", s_Registers.PC);
@@ -1324,16 +1344,17 @@ namespace emu
 
 				JmpAbsolute(*this);
 			}
-			else if (s_IRQ.load() && !s_Flags[FlagInterrupt])
+			else if (s_IRQ.load()) // && !s_Flags[FlagInterrupt])
 			{
 				s_IRQ.store(false);
-				std::println("IRQ called");
+//				std::println("IRQ called - PC: ${:04x}", s_Registers.PC);
+				std::println("IRQ vector is unused in NES");
 
-				Break(*this);
+//				Break(*this);
 				// PC = 0xFFFE - 1
-				s_Registers.PC = 0xFFFD;
+//				s_Registers.PC = 0xFFFD;
 
-				JmpAbsolute(*this);
+//				JmpAbsolute(*this);
 			}
 
 
@@ -1348,8 +1369,8 @@ namespace emu
 
 			if (cycles >= 3'000'000 && cycles < 3'000'005)
 			{
-				s_NMI.store(true);
-
+//				s_NMI.store(true);
+				s_IRQ.store(true);
 //				break;
 			}
 
