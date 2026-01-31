@@ -198,6 +198,10 @@ auto main() -> int
 			ImGui::SameLine();
 			if (ImGui::Button("Step")) cpu.SetRunningMode(emu::RunningMode::Step);
 
+			ImGui::Separator();
+
+			if (ImGui::Button("Trigger NMI")) cpu.TriggerNMI();
+
 			ImGui::End();
 		}
 

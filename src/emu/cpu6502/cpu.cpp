@@ -1344,7 +1344,6 @@ namespace emu
 				});
 			}
 
-
 			{
 				LARGE_INTEGER startCount{};
 				QueryPerformanceCounter(&startCount);
@@ -1376,12 +1375,12 @@ namespace emu
 
 				cycles += maybeExecuted->ClockCycles;
 
-				if (cycles >= 3'000'000 && cycles < 3'000'005)
-				{
-					s_NMI.store(true);
-					//				s_IRQ.store(true);
-					//				break;
-				}
+//				if (cycles >= 3'000'000 && cycles < 3'000'005)
+//				{
+//					s_NMI.store(true);
+//					//				s_IRQ.store(true);
+//					//				break;
+//				}
 
 				std::int64_t countsElapsed{};
 
@@ -1420,6 +1419,11 @@ namespace emu
 	{ 
 		m_RunningMode.store(runningMode);
 		m_CV.notify_all();
+	}
+
+	auto CPU::TriggerNMI() -> void
+	{
+		s_NMI.store(true);
 	}
 
 }

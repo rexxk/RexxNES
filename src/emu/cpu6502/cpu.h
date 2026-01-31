@@ -36,6 +36,8 @@ namespace emu
 
 		auto Stop() -> void;
 
+		auto TriggerNMI() -> void;
+
 		auto SetRunningMode(RunningMode runningMode) -> void;
 		auto GetRunningMode() -> RunningMode { return m_RunningMode.load(); }
 
