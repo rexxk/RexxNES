@@ -2,6 +2,7 @@
 
 #include "emu/memory/memory.h"
 
+#include <atomic>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -24,6 +25,8 @@ namespace emu
 	public:
 		CPU() = delete;
 		explicit CPU(Memory& memory);
+
+		auto Stop() -> void { m_Executing.store(false); }
 
 		auto GetRegisters() -> Registers&;
 		auto GetFlags() -> const std::uint8_t;
@@ -53,6 +56,7 @@ namespace emu
 
 		std::uint16_t m_StartVector{ 0 };
 
+		std::atomic<bool> m_Executing{ false };
 	};
 
 

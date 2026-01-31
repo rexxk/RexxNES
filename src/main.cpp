@@ -1,6 +1,8 @@
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/memory.h"
 
+#include <GLFW/glfw3.h>
+
 #include <cstdint>
 #include <fstream>
 #include <print>
@@ -25,6 +27,14 @@ struct ROMHeader
 auto main() -> int
 {
 	std::println("RexxNES 2026 - emulation at its worst");
+
+	glfwInit();
+
+	glfwInitHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwInitHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	glfwInitHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+	GLFWwindow* window = glfwCreateWindow(800, 600, "RexxNES", nullptr, nullptr);
 
 	std::vector<std::uint8_t> program
 	{
@@ -100,8 +110,18 @@ auto main() -> int
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 //	cpu.Execute();
 
+	while (!glfwWindowShouldClose(window))
+	{
+		glfwPollEvents();
+
+	}
+
+	cpu.Stop();
+
 	cpuThread.join();
 //	cpu.Execute(program, 0x1000);
+
+	glfwTerminate();
 
 	return 0;
 }

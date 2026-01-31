@@ -1291,6 +1291,8 @@ namespace emu
 
 	auto CPU::Execute(std::uint16_t startVector) -> void
 	{
+		m_Executing.store(true);
+
 		s_Flags[FlagInterrupt] = true;
 
 		if (startVector == 0)
@@ -1328,7 +1330,7 @@ namespace emu
 
 		std::uint64_t cycles{ 0 };
 
-		while (true)
+		while (m_Executing.load())
 		{
 			LARGE_INTEGER startCount{};
 			QueryPerformanceCounter(&startCount);
