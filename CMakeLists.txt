@@ -47,8 +47,8 @@ set_property(TARGET RexxNES PROPERTY DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_
 
 add_subdirectory(src)
 
-include_directories(TARGET RexxNES "${CMAKE_SOURCE_DIR}/src")
+include_directories(TARGET RexxNES "${CMAKE_SOURCE_DIR}/src" ${glad_SOURCE_DIR}/include ${imgui_SOURCE_DIR})
 target_link_directories(RexxNES PRIVATE glfw imgui)
-target_link_libraries(RexxNES PRIVATE glfw imgui)
+target_link_libraries(RexxNES PRIVATE glfw imgui glad)
 
 add_subdirectory(tests)

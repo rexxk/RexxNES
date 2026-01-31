@@ -2,6 +2,8 @@
 
 #include <print>
 
+#include <imgui.h>
+
 
 namespace emu
 {
@@ -46,5 +48,25 @@ namespace emu
 
 		m_Data.at(address) = value;
 	}
+
+
+	auto Memory::ViewPage(uint8_t page) -> void
+	{
+		std::uint16_t startAddress = page * 0x100;
+
+		for (auto row = 0; row < 16; row++)
+		{
+			std::string str = std::format("{:04x} : ", row * 16 + startAddress);
+			
+			for (auto col = 0; col < 16; col++)
+			{
+				str += std::format("{:02x} ", m_Data[row * 16 + startAddress + col]);
+			}
+
+			ImGui::Text("%s", str.c_str());
+		}
+
+	}
+
 
 }

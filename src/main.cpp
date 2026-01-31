@@ -1,7 +1,12 @@
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/memory.h"
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
+
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
 
 #include <cstdint>
 #include <fstream>
@@ -28,13 +33,39 @@ auto main() -> int
 {
 	std::println("RexxNES 2026 - emulation at its worst");
 
-	glfwInit();
+	if (glfwInit() == GLFW_FALSE)
+	{
+		std::println("Failed to initialize GLFW");
+		return -1;
+	}
 
-	glfwInitHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwInitHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-	glfwInitHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+	glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
+
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	GLFWwindow* window = glfwCreateWindow(800, 600, "RexxNES", nullptr, nullptr);
+
+	glfwMakeContextCurrent(window);
+
+	gladLoadGL();
+
+	std::println("Initializing ImGui");
+
+	IMGUI_CHECKVERSION();
+
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+	ImGui::StyleColorsDark();
+
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init();
+	
+
 
 	std::vector<std::uint8_t> program
 	{
@@ -110,9 +141,67 @@ auto main() -> int
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 //	cpu.Execute();
 
+//	std::uint64_t frameCount{};
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
+
+		glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		// ImGui controls
+		{
+			ImGui::Begin("CPU status");
+
+//			ImGui::Text("Frame count: %d", frameCount++);
+
+			auto flags = cpu.GetFlags();
+			ImGui::Text("Flag register:");
+
+			char flagString[9];
+			(flags & 0x80) ? flagString[0] = 'N' : flagString[0] = 'n';
+			(flags & 0x40) ? flagString[1] = 'V' : flagString[1] = 'v';
+			(flags & 0x20) ? flagString[2] = '-' : flagString[2] = '-';
+			(flags & 0x10) ? flagString[3] = 'B' : flagString[3] = 'b';
+			(flags & 0x08) ? flagString[4] = 'D' : flagString[4] = 'd';
+			(flags & 0x04) ? flagString[5] = 'I' : flagString[5] = 'i';
+			(flags & 0x02) ? flagString[6] = 'Z' : flagString[6] = 'z';
+			(flags & 0x01) ? flagString[7] = 'C' : flagString[7] = 'c';
+			flagString[8] = '\0';
+
+			ImGui::Text("%s", flagString);
+
+			auto registers = cpu.GetRegisters();
+
+			ImGui::Text("\nRegisters:");
+			ImGui::Text("  A : %02x", registers.A);
+			ImGui::Text("  X : %02x", registers.X);
+			ImGui::Text("  Y : %02x", registers.Y);
+			ImGui::Text(" SP : %02x", registers.SP);
+			ImGui::Text(" PC : %04x", registers.PC);
+
+			ImGui::End();
+		}
+
+		{
+			ImGui::Begin("Zeropage memory");
+
+			cpuMemory.ViewPage(0);
+
+			ImGui::End();
+		}
+
+
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		glfwSwapBuffers(window);
 
 	}
 
@@ -120,6 +209,10 @@ auto main() -> int
 
 	cpuThread.join();
 //	cpu.Execute(program, 0x1000);
+
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 
 	glfwTerminate();
 
