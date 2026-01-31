@@ -3,6 +3,7 @@
 #include "emu/memory/memory.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -10,6 +11,13 @@
 
 namespace emu
 {
+
+	enum class RunningMode
+	{
+		Halt,
+		Run,
+		Step,
+	};
 
 	struct Registers
 	{
@@ -26,7 +34,10 @@ namespace emu
 		CPU() = delete;
 		explicit CPU(Memory& memory);
 
-		auto Stop() -> void { m_Executing.store(false); }
+		auto Stop() -> void;
+
+		auto SetRunningMode(RunningMode runningMode) -> void;
+		auto GetRunningMode() -> RunningMode { return m_RunningMode.load(); }
 
 		auto GetRegisters() -> Registers&;
 		auto GetFlags() -> const std::uint8_t;
@@ -57,6 +68,10 @@ namespace emu
 		std::uint16_t m_StartVector{ 0 };
 
 		std::atomic<bool> m_Executing{ false };
+		std::atomic<RunningMode> m_RunningMode{ RunningMode::Halt };
+
+		std::condition_variable m_CV{};
+		std::mutex m_Mutex{};
 	};
 
 

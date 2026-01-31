@@ -1330,62 +1330,70 @@ namespace emu
 
 		std::uint64_t cycles{ 0 };
 
+		
+
 		while (m_Executing.load())
 		{
-			LARGE_INTEGER startCount{};
-			QueryPerformanceCounter(&startCount);
+			if (m_RunningMode.load() == RunningMode::Step)
+				m_RunningMode.store(RunningMode::Halt);
 
-			if (s_NMI.load()) // && !s_Flags[FlagInterrupt])
 			{
-				s_NMI.store(false);
-				std::println("NMI called - PC: ${:04x}", s_Registers.PC);
-
-				Break(*this);
-				// PC = 0xFFFA - 1
-				s_Registers.PC = 0xFFF9;
-
-				JmpAbsolute(*this);
-			}
-			else if (s_IRQ.load()) // && !s_Flags[FlagInterrupt])
-			{
-				s_IRQ.store(false);
-//				std::println("IRQ called - PC: ${:04x}", s_Registers.PC);%
-				std::println("IRQ vector is unused in NES");
-
-//				Break(*this);
-				// PC = 0xFFFE - 1
-//				s_Registers.PC = 0xFFFD;
-
-//				JmpAbsolute(*this);
+				std::unique_lock<std::mutex> lock(m_Mutex);
+				m_CV.wait(lock, [&] { 
+					return m_RunningMode.load() != RunningMode::Halt || m_Executing.load() == 0; 
+				});
 			}
 
 
-			auto maybeExecuted = ExecuteOpcode(*this, m_Memory.Read(s_Registers.PC));
-
-			if (!maybeExecuted)
-				break;
-
-			s_Registers.PC += maybeExecuted->Size;
-
-			cycles += maybeExecuted->ClockCycles;
-
-			if (cycles >= 3'000'000 && cycles < 3'000'005)
 			{
-				s_NMI.store(true);
-//				s_IRQ.store(true);
-//				break;
+				LARGE_INTEGER startCount{};
+				QueryPerformanceCounter(&startCount);
+
+				if (s_NMI.load()) // && !s_Flags[FlagInterrupt])
+				{
+					s_NMI.store(false);
+					std::println("NMI called - PC: ${:04x}", s_Registers.PC);
+
+					Break(*this);
+					// PC = 0xFFFA - 1
+					s_Registers.PC = 0xFFF9;
+
+					JmpAbsolute(*this);
+				}
+				else if (s_IRQ.load()) // && !s_Flags[FlagInterrupt])
+				{
+					s_IRQ.store(false);
+					std::println("IRQ vector is unused in NES");
+				}
+
+
+				auto maybeExecuted = ExecuteOpcode(*this, m_Memory.Read(s_Registers.PC));
+
+				if (!maybeExecuted)
+					break;
+
+				s_Registers.PC += maybeExecuted->Size;
+
+				cycles += maybeExecuted->ClockCycles;
+
+				if (cycles >= 3'000'000 && cycles < 3'000'005)
+				{
+					s_NMI.store(true);
+					//				s_IRQ.store(true);
+					//				break;
+				}
+
+				std::int64_t countsElapsed{};
+
+				// Cycle sync
+				do
+				{
+					LARGE_INTEGER endCount;
+					QueryPerformanceCounter(&endCount);
+
+					countsElapsed = endCount.QuadPart - startCount.QuadPart;
+				} while (static_cast<double>(countsElapsed) < (maybeExecuted->ClockCycles * frequencyDivider));
 			}
-
-			std::int64_t countsElapsed{};
-
-			// Cycle sync
-			do
-			{
-				LARGE_INTEGER endCount;
-				QueryPerformanceCounter(&endCount);
-
-				countsElapsed = endCount.QuadPart - startCount.QuadPart;
-			} while (static_cast<double>(countsElapsed) < (maybeExecuted->ClockCycles * frequencyDivider));
 		}
 
 		std::println("Cycles: {}", cycles);
@@ -1400,6 +1408,18 @@ namespace emu
 	auto CPU::GetFlags() -> const std::uint8_t
 	{
 		return static_cast<std::uint8_t>(s_Flags.to_ulong());
+	}
+
+	auto CPU::Stop() -> void
+	{
+		m_Executing.store(false);
+		m_CV.notify_all();
+	}
+
+	auto CPU::SetRunningMode(RunningMode runningMode) -> void
+	{ 
+		m_RunningMode.store(runningMode);
+		m_CV.notify_all();
 	}
 
 }

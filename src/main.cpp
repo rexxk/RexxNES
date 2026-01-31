@@ -29,6 +29,7 @@ struct ROMHeader
 };
 
 
+
 auto main() -> int
 {
 	std::println("RexxNES 2026 - emulation at its worst");
@@ -143,6 +144,8 @@ auto main() -> int
 
 //	std::uint64_t frameCount{};
 
+	int memoryPage{ 32 };
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
@@ -185,13 +188,29 @@ auto main() -> int
 			ImGui::Text(" SP : %02x", registers.SP);
 			ImGui::Text(" PC : %04x", registers.PC);
 
+			ImGui::Separator();
+
+			ImGui::Text("Execution control");
+
+			if (ImGui::Button("Run")) cpu.SetRunningMode(emu::RunningMode::Run);
+			ImGui::SameLine();
+			if (ImGui::Button("Halt")) cpu.SetRunningMode(emu::RunningMode::Halt);
+			ImGui::SameLine();
+			if (ImGui::Button("Step")) cpu.SetRunningMode(emu::RunningMode::Step);
+
 			ImGui::End();
 		}
 
 		{
-			ImGui::Begin("Zeropage memory");
+			ImGui::Begin("Memory");
 
-			cpuMemory.ViewPage(0);
+			ImGui::InputInt("Page", &memoryPage);
+			if (memoryPage < 0) memoryPage = 0;
+			if (memoryPage > 0xFF) memoryPage = 0xFF;
+
+			ImGui::Separator();
+
+			cpuMemory.ViewPage(memoryPage);
 
 			ImGui::End();
 		}
