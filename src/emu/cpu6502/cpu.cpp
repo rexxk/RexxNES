@@ -1333,7 +1333,7 @@ namespace emu
 			LARGE_INTEGER startCount{};
 			QueryPerformanceCounter(&startCount);
 
-			if (s_NMI.load() && !s_Flags[FlagInterrupt])
+			if (s_NMI.load()) // && !s_Flags[FlagInterrupt])
 			{
 				s_NMI.store(false);
 				std::println("NMI called - PC: ${:04x}", s_Registers.PC);
@@ -1347,7 +1347,7 @@ namespace emu
 			else if (s_IRQ.load()) // && !s_Flags[FlagInterrupt])
 			{
 				s_IRQ.store(false);
-//				std::println("IRQ called - PC: ${:04x}", s_Registers.PC);
+//				std::println("IRQ called - PC: ${:04x}", s_Registers.PC);%
 				std::println("IRQ vector is unused in NES");
 
 //				Break(*this);
@@ -1369,8 +1369,8 @@ namespace emu
 
 			if (cycles >= 3'000'000 && cycles < 3'000'005)
 			{
-//				s_NMI.store(true);
-				s_IRQ.store(true);
+				s_NMI.store(true);
+//				s_IRQ.store(true);
 //				break;
 			}
 
