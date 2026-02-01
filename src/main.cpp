@@ -131,7 +131,8 @@ auto main() -> int
 	emu::Memory ppuMemory{32};
 	ppuMemory.InstallROM(0x0000, charRom);
 
-	emu::PPU ppu{ ppuMemory, cpuMemory };
+	std::uint8_t nametableAlignment = romHeader.Flags1 & 0x01;
+	emu::PPU ppu{ ppuMemory, cpuMemory, nametableAlignment };
 
 	std::array<std::uint8_t, 0x100> asuMemory;
 	emu::DMA oamDMA{ 0x4014, cpuMemory, ppu.GetInternalMemory() };

@@ -28,8 +28,8 @@ static std::uint8_t RegW{};
 namespace emu
 {
 
-	PPU::PPU(Memory& ppuMemory, Memory& cpuMemory)
-		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory)
+	PPU::PPU(Memory& ppuMemory, Memory& cpuMemory, std::uint8_t nametableAlignment)
+		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
 	{
 		m_Pixels.resize(256 * 240);
 	}
@@ -61,9 +61,19 @@ namespace emu
 			}
 
 
-			for (std::uint16_t scanline = 0; scanline < 241; scanline++)
+//			for (std::uint16_t scanline = 0; scanline < 241; scanline++)
+//			{
+//				ProcessScanline(scanline);
+//			}
+
+			for (std::uint16_t index = 0; index < 32 * 30; index++)
 			{
-				ProcessScanline(scanline);
+				auto nametableValue = ReadMemory(0x2000 + index);
+			}
+
+			for (std::uint16_t index = 0; index < 64; index++)
+			{
+				auto nametableAttribute = ReadMemory(0x23c0 + index);
 			}
 
 
@@ -103,13 +113,11 @@ namespace emu
 		// First "cycle" - fetch data
 		// Second "cycle" - create pixels
 
-//		for (std::uint16_t col = 0; col < 240; col++)
-//		{
-//			auto nametableValue = m_PPUMemory.Read(0x2000 + scanline * 240 + col);
-//
-//			std::println("Nametable value: {:02x}", nametableValue);
-//		}
+		auto nametableValue = ReadMemory(0x2000);
 
+		// Tile size - 8x8
+
+		// Idea - read all tiles (32x30) and interpolate all 8 pixels per tile and scanline. Make the pixel data from that.
 
 		return cycles;
 	}
@@ -124,6 +132,16 @@ namespace emu
 	auto PPU::ResetW() -> void
 	{
 		RegW = 0;
+	}
+
+	auto PPU::ReadMemory(std::uint16_t address) -> std::uint8_t
+	{
+		return m_PPUMemory.Read(address);
+	}
+
+	auto PPU::WriteMemory(std::uint16_t address, std::uint8_t value) -> void
+	{
+		m_PPUMemory.Write(address, value);
 	}
 
 }
