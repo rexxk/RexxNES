@@ -18,6 +18,11 @@ static constexpr std::uint16_t PPUADDR = 0x2006;
 static constexpr std::uint16_t PPUDATA = 0x2007;
 static constexpr std::uint16_t OAMDMA = 0x4014;
 
+static std::uint16_t RegV{};
+static std::uint16_t RegT{};
+static std::uint8_t RegX{};
+static std::uint8_t RegW{};
+
 
 
 namespace emu
@@ -26,7 +31,7 @@ namespace emu
 	PPU::PPU(Memory& ppuMemory, Memory& cpuMemory)
 		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory)
 	{
-
+		m_Pixels.resize(256 * 240);
 	}
 
 
@@ -43,16 +48,40 @@ namespace emu
 
 		while (m_Executing.load())
 		{
-//			std::println("NMI execution");
+			// Clear VBlank flag
+			{
+				auto value = m_CPUMemory.Read(PPUSTATUS);
+				value &= 0x7F;
+				m_CPUMemory.Write(PPUSTATUS, value);
+			}
 
-			std::this_thread::sleep_for(16ms);
-//			std::this_thread::sleep_for(std::chrono::duration<double, std::ratio<1, 2>>());
+			// Do all frame processing
+			{
+				auto oamAddress = m_CPUMemory.Read(OAMADDR);
+			}
+
+
+			for (std::uint16_t scanline = 0; scanline < 241; scanline++)
+			{
+				ProcessScanline(scanline);
+			}
+
+
+
+			// Set VBlank flag
+			{
+				auto value = m_CPUMemory.Read(PPUSTATUS);
+				value |= 0x80;
+				m_CPUMemory.Write(PPUSTATUS, value);
+			}
 
 			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
-	
+
 			if (ppuCtrl & 0x80)
 				CPU::TriggerNMI();
-//				m_CPUMemory.Write(PPUCTRL, ppuCtrl);
+
+			std::this_thread::sleep_for(16ms);
+
 		}
 
 		std::println("Stopping PPU");
@@ -61,6 +90,40 @@ namespace emu
 	auto PPU::Stop() -> void
 	{
 		m_Executing.store(false);
+	}
+
+
+	auto PPU::ProcessScanline(std::uint16_t scanline) -> std::uint16_t
+	{
+		std::uint16_t cycles{};
+
+		const std::uint16_t nametableBase = 0x2000;
+
+		// 2 bits per pixel - 4 pixels per byte
+		// First "cycle" - fetch data
+		// Second "cycle" - create pixels
+
+//		for (std::uint16_t col = 0; col < 240; col++)
+//		{
+//			auto nametableValue = m_PPUMemory.Read(0x2000 + scanline * 240 + col);
+//
+//			std::println("Nametable value: {:02x}", nametableValue);
+//		}
+
+
+		return cycles;
+	}
+
+
+	auto PPU::ToggleW() -> void
+	{
+		++RegW &= 0x01;
+
+	}
+	
+	auto PPU::ResetW() -> void
+	{
+		RegW = 0;
 	}
 
 }

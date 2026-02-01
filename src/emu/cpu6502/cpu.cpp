@@ -981,13 +981,9 @@ namespace emu
 				uint16_t frameCycles{ 0 };
 
 				if (s_NMI.load())
-//				if (m_Memory.Read(0x2000) & 0x80)
 				{
 					s_NMI.store(false);
-//					m_Memory.Write(0x2000, m_Memory.Read(0x2000) & 0x7F);
-//					std::println("NMI called - PC: ${:04x}", s_Registers.PC);
 
-//					std::println("NMI function call");
 					Break(*this);
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
@@ -1010,7 +1006,7 @@ namespace emu
 				{
 					s_OAMDMA.store(false);
 
-//					frameCycles += m_OAMDMA.Execute();
+					frameCycles += m_OAMDMA.Execute();
 				}
 
 				auto opCode = m_Memory.Read(s_Registers.PC);

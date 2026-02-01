@@ -22,8 +22,6 @@ namespace emu
 			m_DestinationMemory[index] = m_SourceMemory.Read(sourceAddress + index);
 		}
 
-//		std::println("DMA data transfer: {:04x} ({:04x})", sourceAddress, m_Address);
-
 		// Operation takes 513 or 514 cycles depending on alignment need
 		return 514;
 	}

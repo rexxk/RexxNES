@@ -1,4 +1,5 @@
 #include "emu/memory/memory.h"
+#include "emu/ppu/ppu.h"
 
 #include <print>
 
@@ -32,28 +33,32 @@ namespace emu
 
 //		if (address >= 0x2000 && address < 0x2FFF)
 //			std::println("Reading from PPU ({:04x} : {:02x})", address, m_Data.at(address));
+//		if (address == 0x2003 || address == 0x2004)
+//			std::println("Reading from PPU ({:04x} = {:02x})", address, returnValue);
 
-		if (address == 0x2002 && m_Data.at(address) & 0x80)
+//		if (address == 0x2002 && m_Data.at(address) & 0x80)
+//			m_Data.at(address) &= 0x7F;
+//		else if (address == 0x2002)
+//			m_Data.at(address) |= 0x80;
+
+		if (address == 0x2002)
+		{
 			m_Data.at(address) &= 0x7F;
-		else if (address == 0x2002)
-			m_Data.at(address) |= 0x80;
+			PPU::ResetW();
+		}
 
 		return returnValue;
 	}
 
 	auto Memory::Write(std::uint16_t address, std::uint8_t value) -> void
 	{
-//		if (address == 0x2000)
-//			std::println("Writing to 0x2000 - {:02x}", value);
-//		if (address >= 0x2000 && address < 0x2FFF)
+//		if (address == 0x2001)
 //			std::println("Writing to PPU ({:04x} = {:02x})", address, value);
-		m_Data.at(address) = value;
 
-		// Check for OAM DMA write
-//		if (address == 0x4014)
-//		{
-//			std::println("Write to OAM DMA : {}", value);
-//		}
+		if (address == 0x2005 || address == 0x2006)
+			PPU::ToggleW();
+
+		m_Data.at(address) = value;
 	}
 
 
