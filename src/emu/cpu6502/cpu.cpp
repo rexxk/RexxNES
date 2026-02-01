@@ -40,6 +40,9 @@ namespace emu
 	static std::atomic<bool> s_NMI{ false };
 	static std::atomic<bool> s_IRQ{ false };
 
+	static std::atomic<bool> s_OAMDMA{ false };
+	static std::atomic<bool> s_DMCDMA{ false };
+
 	struct OpValue
 	{
 		std::uint8_t Size{ 0 };
@@ -221,7 +224,7 @@ namespace emu
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 3) & 0xFF00) >> 8));
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF));
 
-		//		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
+//		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
 
 		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
 		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
@@ -255,14 +258,25 @@ namespace emu
 
 	auto CPU::WriteAddress(std::uint16_t address, std::uint8_t value) -> void
 	{
+		// Check for OAM DMA write
+		if (address == 0x4014)
+		{
+			s_OAMDMA.store(true);
+		}
+
+		if (address == 0x4015)
+		{
+			s_DMCDMA.store(true);
+		}
+
 		return m_Memory.Write(address, value);
 	}
 
 
 	auto CPU::FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
-		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
 
 		return address;
@@ -270,8 +284,8 @@ namespace emu
 
 	auto CPU::FetchAddress() -> std::uint16_t
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
-		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (memoryHigh << 8) + memoryLow;
 
 		return address;
@@ -279,7 +293,7 @@ namespace emu
 
 	auto CPU::FetchZeropageAddress() -> std::uint16_t
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
 		std::uint16_t address = (0x00 << 8) + memoryLow;
 
 		return address;
@@ -287,8 +301,8 @@ namespace emu
 
 	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
-		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (memoryHigh << 8) + memoryLow;
 
 		PrintCommandArg(address);
@@ -298,82 +312,82 @@ namespace emu
 
 	auto CPU::ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg, std::string_view regString) -> std::uint8_t
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
-		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
 
 		PrintCommandArgAbsolute(address, regString);
 
-		return m_Memory.Read(address);
+		return ReadAddress(address);
 	}
 
 	auto CPU::ReadIndirectIndexed() -> std::uint8_t
 	{
 		auto zeropageAddress = m_Memory.Read(s_Registers.PC + 1);
 
-		auto addressLow = m_Memory.Read(zeropageAddress);
-		auto addressHigh = m_Memory.Read(zeropageAddress + 1);
+		auto addressLow = ReadAddress(zeropageAddress);
+		auto addressHigh = ReadAddress(zeropageAddress + 1);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
 		address += s_Registers.Y;
 
-		return m_Memory.Read(address);
+		return ReadAddress(address);
 	}
 
 	auto CPU::ReadZeropageAddress() -> std::uint8_t
 	{
-		auto addressLow = m_Memory.Read(s_Registers.PC + 1);
+		auto addressLow = ReadAddress(s_Registers.PC + 1);
 		std::uint8_t addressHigh{ 0 };
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
-		return m_Memory.Read(address);
+		return ReadAddress(address);
 	}
 
 	auto CPU::WriteAbsoluteAddress(const std::uint8_t value) -> void
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
-		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (memoryHigh << 8) + memoryLow;
 
 		PrintCommandArg(address);
 
-		m_Memory.Write(address, value);
+		WriteAddress(address, value);
 	}
 
 	auto CPU::WriteAbsoluteAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value, std::string_view regString) -> void
 	{
-		auto memoryLow = m_Memory.Read(s_Registers.PC + 1);
-		auto memoryHigh = m_Memory.Read(s_Registers.PC + 2);
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
 
 		PrintCommandArgAbsolute(address, regString);
 
-		m_Memory.Write(address, value);
+		WriteAddress(address, value);
 	}
 
 	auto CPU::WriteIndirectIndexed(std::uint8_t value) -> void
 	{
-		auto zeropageAddress = m_Memory.Read(s_Registers.PC + 1);
+		auto zeropageAddress = ReadAddress(s_Registers.PC + 1);
 		PrintCommandArgIndirect(zeropageAddress, "Y");
 
-		auto addressLow = m_Memory.Read(zeropageAddress);
-		auto addressHigh = m_Memory.Read(zeropageAddress + 1);
+		auto addressLow = ReadAddress(zeropageAddress);
+		auto addressHigh = ReadAddress(zeropageAddress + 1);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 	
 		address += s_Registers.Y;
 
-		m_Memory.Write(address, value);
+		WriteAddress(address, value);
 	}
 
 	auto CPU::WriteZeropageAddress(const std::uint8_t value) -> void
 	{
-		auto addressLow = m_Memory.Read(s_Registers.PC + 1);
+		auto addressLow = ReadAddress(s_Registers.PC + 1);
 		std::uint8_t addressHigh{ 0 };
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
 		PrintCommandArg(address);
 
-		m_Memory.Write(address, value);
+		WriteAddress(address, value);
 	}
 
 
@@ -702,7 +716,7 @@ namespace emu
 		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
-		std::println(" RTI ${:04x}", address);
+//		std::println(" RTI ${:04x}", address);
 
 		s_Registers.PC = address;
 
@@ -904,8 +918,8 @@ namespace emu
 	}
 
 
-	CPU::CPU(Memory& memory)
-		: m_Memory(memory)
+	CPU::CPU(Memory& memory, DMA& oamDMA, DMA& dmcDMA)
+		: m_Memory(memory), m_OAMDMA(oamDMA), m_DMCDMA(dmcDMA)
 	{
 		for (auto& fn : s_OpCodes)
 		{
@@ -964,11 +978,16 @@ namespace emu
 				LARGE_INTEGER startCount{};
 				QueryPerformanceCounter(&startCount);
 
+				uint16_t frameCycles{ 0 };
+
 				if (s_NMI.load())
+//				if (m_Memory.Read(0x2000) & 0x80)
 				{
 					s_NMI.store(false);
-					std::println("NMI called - PC: ${:04x}", s_Registers.PC);
+//					m_Memory.Write(0x2000, m_Memory.Read(0x2000) & 0x7F);
+//					std::println("NMI called - PC: ${:04x}", s_Registers.PC);
 
+//					std::println("NMI function call");
 					Break(*this);
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
@@ -979,6 +998,19 @@ namespace emu
 				{
 					s_IRQ.store(false);
 					std::println("IRQ vector is unused in NES");
+				}
+
+				// DMC DMA takes precedense over OAM DMA. If both occurs at the same time, DMC runs first and OAM at next cycle.
+				if (s_DMCDMA.load())
+				{
+//					std::println("DMC DMA write triggered");
+					s_DMCDMA.store(false);
+				}
+				else if (s_OAMDMA.load())
+				{
+					s_OAMDMA.store(false);
+
+//					frameCycles += m_OAMDMA.Execute();
 				}
 
 				auto opCode = m_Memory.Read(s_Registers.PC);
@@ -996,6 +1028,7 @@ namespace emu
 				s_Registers.PC += maybeExecuted->Size;
 
 				cycles += maybeExecuted->ClockCycles;
+				frameCycles += maybeExecuted->ClockCycles;
 
 				std::int64_t countsElapsed{};
 
@@ -1006,7 +1039,7 @@ namespace emu
 					QueryPerformanceCounter(&endCount);
 
 					countsElapsed = endCount.QuadPart - startCount.QuadPart;
-				} while (static_cast<double>(countsElapsed) < (maybeExecuted->ClockCycles * frequencyDivider));
+				} while (static_cast<double>(countsElapsed) < (frameCycles * frequencyDivider));
 			}
 		}
 

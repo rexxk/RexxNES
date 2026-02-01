@@ -43,10 +43,17 @@ namespace emu
 
 	auto Memory::Write(std::uint16_t address, std::uint8_t value) -> void
 	{
+//		if (address == 0x2000)
+//			std::println("Writing to 0x2000 - {:02x}", value);
 //		if (address >= 0x2000 && address < 0x2FFF)
 //			std::println("Writing to PPU ({:04x} = {:02x})", address, value);
-
 		m_Data.at(address) = value;
+
+		// Check for OAM DMA write
+//		if (address == 0x4014)
+//		{
+//			std::println("Write to OAM DMA : {}", value);
+//		}
 	}
 
 

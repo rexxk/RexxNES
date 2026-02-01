@@ -1,4 +1,5 @@
 #include "emu/ppu/ppu.h"
+#include "emu/cpu6502/cpu.h"
 
 #include <chrono>
 #include <print>
@@ -33,10 +34,25 @@ namespace emu
 	{
 		std::println("Starting PPU");
 
+		m_Executing.store(true);
+
+		auto framesPerSecond = 60.0988f;
+		auto frameTime = 1.0f / framesPerSecond;
+
+		std::println("Frametime: {}s", frameTime);
+
 		while (m_Executing.load())
 		{
+//			std::println("NMI execution");
 
-			std::this_thread::sleep_for(10ms);
+			std::this_thread::sleep_for(16ms);
+//			std::this_thread::sleep_for(std::chrono::duration<double, std::ratio<1, 2>>());
+
+			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
+	
+			if (ppuCtrl & 0x80)
+				CPU::TriggerNMI();
+//				m_CPUMemory.Write(PPUCTRL, ppuCtrl);
 		}
 
 		std::println("Stopping PPU");

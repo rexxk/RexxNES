@@ -1,4 +1,5 @@
 #include "emu/cpu6502/cpu.h"
+#include "emu/memory/dma.h"
 #include "emu/memory/memory.h"
 #include "emu/ppu/ppu.h"
 
@@ -126,13 +127,17 @@ auto main() -> int
 
 	emu::Memory cpuMemory{64};
 	cpuMemory.InstallROM(0x8000, programRom);
-//	cpuMemory.InstallROM(0x0000, charRom);
 
 	emu::Memory ppuMemory{32};
 	ppuMemory.InstallROM(0x0000, charRom);
 
-	emu::CPU cpu{ cpuMemory };
 	emu::PPU ppu{ ppuMemory, cpuMemory };
+
+	std::array<std::uint8_t, 0x100> asuMemory;
+	emu::DMA oamDMA{ 0x4014, cpuMemory, ppu.GetInternalMemory() };
+	emu::DMA dmcDMA{ 0x4015, cpuMemory, asuMemory };
+
+	emu::CPU cpu{ cpuMemory, oamDMA, dmcDMA };
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 	std::thread ppuThread(&emu::PPU::Execute, &ppu);

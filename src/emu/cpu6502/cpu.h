@@ -1,5 +1,6 @@
 #pragma once
 
+#include "emu/memory/dma.h"
 #include "emu/memory/memory.h"
 
 #include <atomic>
@@ -32,11 +33,11 @@ namespace emu
 	{
 	public:
 		CPU() = delete;
-		explicit CPU(Memory& memory);
+		explicit CPU(Memory& memory, DMA& oamDMA, DMA& dmcDMA);
 
 		auto Stop() -> void;
 
-		auto TriggerNMI() -> void;
+		static auto TriggerNMI() -> void;
 
 		auto SetRunningMode(RunningMode runningMode) -> void;
 		auto GetRunningMode() -> RunningMode { return m_RunningMode.load(); }
@@ -65,6 +66,8 @@ namespace emu
 		//		auto AbsoluteAddress() -> uint16_t;
 
 	private:
+		DMA& m_OAMDMA;
+		DMA& m_DMCDMA;
 		Memory& m_Memory;
 
 		std::uint16_t m_StartVector{ 0 };
