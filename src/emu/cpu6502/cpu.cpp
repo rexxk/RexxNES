@@ -49,6 +49,19 @@ namespace emu
 	using OpCodeFn = std::function<std::optional<OpValue>(CPU&)>;
 	static std::array<OpCodeFn, 0xFF> s_OpCodes;
 
+	enum class FrequencyType
+	{
+		PAL,
+		NTSC,
+		Dendy,
+	};
+
+	static std::unordered_map<FrequencyType, std::uint32_t> s_Frequency
+	{
+		{ FrequencyType::PAL, 1'662'607 },
+		{ FrequencyType::NTSC, 1'789'773 },
+		{ FrequencyType::Dendy, 1'773'448 },
+	};
 
 	static auto PrintRegisters() -> void
 	{
@@ -124,6 +137,8 @@ namespace emu
 		s_Flags[FlagInterrupt] = true;
 
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
+
+		s_Flags[FlagBreak] = true;
 
 		return OpValue{ 1, 7 };
 	}
@@ -668,6 +683,8 @@ namespace emu
 	{
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
 
+		s_Flags[FlagBreak] = true;
+
 		return OpValue{ 1, 3 };
 	}
 
@@ -916,7 +933,7 @@ namespace emu
 		// Sets VBLANK flag - keep it static for debugging until PPU is implemented :-)
 		m_Memory.Write(0x2002, 0x80);
 
-		const auto frequency = 1'662'607;
+		const auto frequency = s_Frequency[FrequencyType::NTSC];
 		const auto cycleTime = 1'000'000'000 / frequency;
 
 		LARGE_INTEGER li{};
@@ -947,7 +964,7 @@ namespace emu
 				LARGE_INTEGER startCount{};
 				QueryPerformanceCounter(&startCount);
 
-				if (s_NMI.load()) // && !s_Flags[FlagInterrupt])
+				if (s_NMI.load())
 				{
 					s_NMI.store(false);
 					std::println("NMI called - PC: ${:04x}", s_Registers.PC);
@@ -958,7 +975,7 @@ namespace emu
 
 					JmpAbsolute(*this);
 				}
-				else if (s_IRQ.load()) // && !s_Flags[FlagInterrupt])
+				else if (s_IRQ.load() && !s_Flags[FlagInterrupt])
 				{
 					s_IRQ.store(false);
 					std::println("IRQ vector is unused in NES");
