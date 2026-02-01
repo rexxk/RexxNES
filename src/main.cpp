@@ -1,5 +1,6 @@
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/memory.h"
+#include "emu/ppu/ppu.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -67,13 +68,6 @@ auto main() -> int
 	ImGui_ImplOpenGL3_Init();
 	
 
-
-	std::vector<std::uint8_t> program
-	{
-		0xA9, 0x10, 0x85, 0x02, 0xAA, 0xC8, 0x88, 0xC9, 
-		0xAB,
-	};
-
 	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
 
 	if (!fs.is_open())
@@ -137,12 +131,12 @@ auto main() -> int
 	emu::Memory ppuMemory{32};
 	ppuMemory.InstallROM(0x0000, charRom);
 
-	emu::CPU cpu{cpuMemory};
+	emu::CPU cpu{ cpuMemory };
+	emu::PPU ppu{ ppuMemory, cpuMemory };
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
-//	cpu.Execute();
+	std::thread ppuThread(&emu::PPU::Execute, &ppu);
 
-//	std::uint64_t frameCount{};
 
 	int memoryPage{ 32 };
 
@@ -229,7 +223,9 @@ auto main() -> int
 	}
 
 	cpu.Stop();
+	ppu.Stop();
 
+	ppuThread.join();
 	cpuThread.join();
 //	cpu.Execute(program, 0x1000);
 
