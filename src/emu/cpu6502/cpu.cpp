@@ -1,8 +1,10 @@
 #include "emu/cpu6502/cpu.h"
 
 #include <atomic>
+#include <array>
 #include <bitset>
 #include <chrono>
+#include <functional>
 #include <optional>
 #include <print>
 #include <string>
@@ -21,7 +23,7 @@ namespace emu
 
 #define PRINT_COMMANDS	0
 
-	
+
 	constexpr std::uint8_t FlagCarry = 0;
 	constexpr std::uint8_t FlagZero = 1;
 	constexpr std::uint8_t FlagInterrupt = 2;
@@ -43,6 +45,10 @@ namespace emu
 		std::uint8_t Size{ 0 };
 		std::uint8_t ClockCycles{ 0 };
 	};
+
+	using OpCodeFn = std::function<std::optional<OpValue>(CPU&)>;
+	static std::array<OpCodeFn, 0xFF> s_OpCodes;
+
 
 	static auto PrintRegisters() -> void
 	{
@@ -226,11 +232,6 @@ namespace emu
 	}
 
 
-	CPU::CPU(Memory& memory)
-		: m_Memory(memory)
-	{
-
-	}
 
 	auto CPU::ReadAddress(std::uint16_t address) -> std::uint8_t
 	{
@@ -814,478 +815,87 @@ namespace emu
 		return OpValue{ 1, 2 };
 	}
 
-	static auto ExecuteOpcode(CPU& cpu, std::uint8_t opCode) -> const std::optional<OpValue>
+	static auto NOP(CPU& cpu) -> std::optional<OpValue> { return OpValue{ 0, 0 }; }
+
+	static auto SetupOpCodeArray() -> void
 	{
-		switch (opCode)
+		s_OpCodes[0x00] = []([[maybe_unused]] CPU& cpu) { return Break(cpu); };
+		s_OpCodes[0x05] = []([[maybe_unused]] CPU& cpu) { return OrZeropage(cpu); };
+		s_OpCodes[0x08] = []([[maybe_unused]] CPU& cpu) { return PushSRToStack(cpu); };
+		s_OpCodes[0x09] = []([[maybe_unused]] CPU& cpu) { return OrImmediate(cpu); };
+		s_OpCodes[0x0a] = []([[maybe_unused]] CPU& cpu) { return AslAccumulator(cpu); };
+		s_OpCodes[0x10] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagNegative, false); };
+		s_OpCodes[0x11] = []([[maybe_unused]] CPU& cpu) { return OrIndirectIndexed(cpu, &Registers::A); };
+		s_OpCodes[0x18] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = false; return OpValue{ 1, 2 }; };
+		s_OpCodes[0x19] = []([[maybe_unused]] CPU& cpu) { return OrAbsoluteRegister(cpu, &Registers::Y, "Y"); };
+		s_OpCodes[0x20] = []([[maybe_unused]] CPU& cpu) { return JsrAbsolute(cpu); };
+		s_OpCodes[0x24] = []([[maybe_unused]] CPU& cpu) { return BitZeropage(cpu); };
+		s_OpCodes[0x28] = []([[maybe_unused]] CPU& cpu) { return PullSRFromStack(cpu); };
+		s_OpCodes[0x29] = []([[maybe_unused]] CPU& cpu) { return AndImmediate(cpu); };
+		s_OpCodes[0x2a] = []([[maybe_unused]] CPU& cpu) { return RotateLeft(cpu); };
+		s_OpCodes[0x2c] = []([[maybe_unused]] CPU& cpu) { return BitAbsolute(cpu); };
+		s_OpCodes[0x38] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = true; return OpValue{ 1, 2 }; };
+		s_OpCodes[0x3d] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::X, "X"); };
+		s_OpCodes[0x3e] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAbsoluteX(cpu); };
+		s_OpCodes[0x40] = []([[maybe_unused]] CPU& cpu) { return ReturnFromInterrupt(cpu); };
+		s_OpCodes[0x45] = []([[maybe_unused]] CPU& cpu) { return EorZeropage(cpu); };
+		s_OpCodes[0x48] = []([[maybe_unused]] CPU& cpu) { return PushToStack(cpu, &Registers::A); };
+		s_OpCodes[0x4a] = []([[maybe_unused]] CPU& cpu) { return LogicalShiftRight(cpu); };
+		s_OpCodes[0x4c] = []([[maybe_unused]] CPU& cpu) { return JmpAbsolute(cpu); };
+		s_OpCodes[0x60] = []([[maybe_unused]] CPU& cpu) { return ReturnFromSubroutine(cpu); };
+		s_OpCodes[0x68] = []([[maybe_unused]] CPU& cpu) { return PullFromStack(cpu, &Registers::A); };
+		s_OpCodes[0x6c] = []([[maybe_unused]] CPU& cpu) { return JmpIndirect(cpu); };
+		s_OpCodes[0x78] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagInterrupt] = true;  return OpValue{ 1, 2 }; };
+		s_OpCodes[0x7e] = []([[maybe_unused]] CPU& cpu) { return RotateRightAbsoluteX(cpu); };
+		s_OpCodes[0x85] = []([[maybe_unused]] CPU& cpu) { return StZeropage(cpu, &Registers::A); };
+		s_OpCodes[0x86] = []([[maybe_unused]] CPU& cpu) { return StZeropage(cpu, &Registers::X); };
+		s_OpCodes[0x88] = []([[maybe_unused]] CPU& cpu) { return Dec(&Registers::Y); };
+		s_OpCodes[0x8a] = []([[maybe_unused]] CPU& cpu) { return Transfer(&Registers::X, &Registers::A); };
+		s_OpCodes[0x8d] = []([[maybe_unused]] CPU& cpu) { return StAbsolute(cpu, &Registers::A); };
+		s_OpCodes[0x90] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagCarry, false); };
+		s_OpCodes[0x91] = []([[maybe_unused]] CPU& cpu) { return StaIndirectIndexed(cpu); };
+		s_OpCodes[0x99] = []([[maybe_unused]] CPU& cpu) { return StaAbsoluteReg(cpu, &Registers::Y); };
+		s_OpCodes[0x9a] = []([[maybe_unused]] CPU& cpu) { s_Registers.SP = s_Registers.X; return OpValue{ 1, 2 }; };
+		s_OpCodes[0x9d] = []([[maybe_unused]] CPU& cpu) { return StaAbsoluteReg(cpu, &Registers::X); };
+		s_OpCodes[0xa0] = []([[maybe_unused]] CPU& cpu) { return LdImmediate(cpu, &Registers::Y); };
+		s_OpCodes[0xa2] = []([[maybe_unused]] CPU& cpu) { return LdImmediate(cpu, &Registers::X); };
+		s_OpCodes[0xa5] = []([[maybe_unused]] CPU& cpu) { return LdZeropage(cpu, &Registers::A); };
+		s_OpCodes[0xa8] = []([[maybe_unused]] CPU& cpu) { return Transfer(&Registers::A, &Registers::Y); };
+		s_OpCodes[0xa9] = []([[maybe_unused]] CPU& cpu) { return LdImmediate(cpu, &Registers::A); };
+		s_OpCodes[0xaa] = []([[maybe_unused]] CPU& cpu) { return Transfer(&Registers::A, &Registers::X); };
+		s_OpCodes[0xac] = []([[maybe_unused]] CPU& cpu) { return LdAbsolute(cpu, &Registers::Y); };
+		s_OpCodes[0xad] = []([[maybe_unused]] CPU& cpu) { return LdAbsolute(cpu, &Registers::A); };
+		s_OpCodes[0xae] = []([[maybe_unused]] CPU& cpu) { return LdAbsolute(cpu, &Registers::X); };
+		s_OpCodes[0xb0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagCarry, true); };
+		s_OpCodes[0xb1] = []([[maybe_unused]] CPU& cpu) { return LdaIndirectIndex(cpu); };
+		s_OpCodes[0xbd] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::X, "X"); };
+		s_OpCodes[0xbe] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::X, &Registers::Y, "Y"); };
+		s_OpCodes[0xc0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::Y); };
+		s_OpCodes[0xc8] = []([[maybe_unused]] CPU& cpu) { return Inc(&Registers::Y); };
+		s_OpCodes[0xc9] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::A); };
+		s_OpCodes[0xca] = []([[maybe_unused]] CPU& cpu) { return Dec(&Registers::X); };
+		s_OpCodes[0xcc] = []([[maybe_unused]] CPU& cpu) { return CmpAbsolute(cpu, &Registers::Y); };
+		s_OpCodes[0xce] = []([[maybe_unused]] CPU& cpu) { return DecAbsolute(cpu); };
+		s_OpCodes[0xd0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagZero, false); };
+		s_OpCodes[0xd8] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagDecimal] = false; return OpValue{ 1, 2 }; };
+		s_OpCodes[0xe0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::X); };
+		s_OpCodes[0xe6] = []([[maybe_unused]] CPU& cpu) { return IncZeropage(cpu); };
+		s_OpCodes[0xe8] = []([[maybe_unused]] CPU& cpu) { return Inc(&Registers::X); };
+		s_OpCodes[0xee] = []([[maybe_unused]] CPU& cpu) { return IncAbsolute(cpu); };
+		s_OpCodes[0xf0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagZero, true); };
+		s_OpCodes[0xf9] = []([[maybe_unused]] CPU& cpu) { return SbcAbsoluteOffset(cpu, &Registers::Y, "Y"); };
+	}
+
+
+	CPU::CPU(Memory& memory)
+		: m_Memory(memory)
+	{
+		for (auto& fn : s_OpCodes)
 		{
-			// BRK
-			case 0x00:
-			{
-				PrintSingleCommand("BRK");
-				return Break(cpu);
-			}
-	
-			// ORA zeropage (ORA $xx) - A OR M -> A - NZ
-			case 0x05:
-			{
-				PrintCommand("ORA");
-				return OrZeropage(cpu);
-			}
-
-			// PHP
-			case 0x08:
-			{
-				PrintSingleCommand("PHP");
-				return PushSRToStack(cpu);
-			}
-
-			// ORA (ORA #$xx) - NZ
-			case 0x09:
-			{
-				PrintCommand("ORA");
-				return OrImmediate(cpu);
-			}
-
-			// ASL accumulator (ASL) - NZC
-			case 0x0a:
-			{
-				PrintSingleCommand("ASL");
-				return AslAccumulator(cpu);
-			}
-
-			// BPL (BPL #rel) - branch if N=0 -
-			case 0x10:
-			{
-				PrintCommand("BPL");
-				return Branch(cpu, FlagNegative, false);
-			}
-
-			// ORA (ORA ($xx),Y) -  NZ
-			case 0x11:
-			{
-				PrintCommand("ORA");
-				return OrIndirectIndexed(cpu, &Registers::A);
-			}
-	
-			// CLC
-			case 0x18:
-			{
-				PrintSingleCommand("CLC");
-				s_Flags[FlagCarry] = false;
-				return OpValue{ 1, 2 };
-			}
-
-			// ORA absolute,Y (ORA $xxxx,Y) - A OR M -> A - NZ
-			case 0x19:
-			{
-				PrintCommand("ORA");
-				return OrAbsoluteRegister(cpu, &Registers::Y, "Y");
-			}
-
-			// JSR (JSR $xxxx) -
-			case 0x20:
-			{
-				PrintCommand("JSR");
-				return JsrAbsolute(cpu);
-			}
-
-			// BIT zeropage (BIT $xx) - NVZ
-			case 0x24:
-			{
-				PrintCommand("BIT");
-				return BitZeropage(cpu);
-			}
-
-			// PLP
-			case 0x28:
-			{
-				PrintSingleCommand("PLP");
-				return PullSRFromStack(cpu);
-			}
-
-			// AND immediate (AND #$xx) - NZ
-			case 0x29:
-			{
-				PrintCommand("AND");
-				return AndImmediate(cpu);
-			}
-
-			// ROL accumulator (ROL) - NZC
-			case 0x2A:
-			{
-				PrintSingleCommand("ROL");
-				return RotateLeft(cpu);
-			}
-
-			// BIT absolute (BIT #$xx) - NVZ
-			case 0x2C:
-			{
-				PrintCommand("BIT");
-				return BitAbsolute(cpu);
-			}
-
-			// SEC implied (SEC)
-			case 0x38:
-			{
-				PrintSingleCommand("SEC");
-				s_Flags[FlagCarry] = true;
-				return OpValue{ 1, 2 };
-			}
-
-			// AND absolute, X (AND $xxxx,X) - A AND M -> A - NZ
-			case 0x3D:
-			{
-				PrintCommand("AND");
-				return AndAbsoluteOffset(cpu, &Registers::X, "X");
-			}
-
-			// ROL absolute,X (ROL $xxxx,X) - NZC
-			case 0x3E:
-			{
-				PrintCommand("ROL");
-				return RotateLeftAbsoluteX(cpu);
-			}
-
-			// RTI
-			case 0x40:
-			{
-				PrintSingleCommand("RTI");
-				return ReturnFromInterrupt(cpu);
-			}
-
-			// EOR zeropage (EOR $xx) - A EOR M -> A - NZ
-			case 0x45:
-			{
-				PrintCommand("EOR");
-				return EorZeropage(cpu);
-			}
-
-			// PHA implied (PHA)
-			case 0x48:
-			{
-				PrintSingleCommand("PHA");
-				return PushToStack(cpu, &Registers::A);
-			}
-
-			// LSR A (LSR) - (N0)ZC
-			case 0x4A:
-			{
-				PrintSingleCommand("LSR");
-				return LogicalShiftRight(cpu);
-			}
-
-			// JMP absolute (JMP $xxxx)
-			case 0x4C:
-			{
-				PrintCommand("JMP");
-				return JmpAbsolute(cpu);
-			}
-
-			// RTS
-			case 0x60:
-			{
-				PrintSingleCommand("RTS");
-//				std::println("RTS!");
-				return ReturnFromSubroutine(cpu);
-			}
-
-			// PLA
-			case 0x68:
-			{
-				PrintSingleCommand("PLA");
-				return PullFromStack(cpu, &Registers::A);
-			}
-
-			// JMP indirect (JMP $(xxxx))
-			case 0x6C:
-			{
-				PrintCommand("JMP");
-				return JmpIndirect(cpu);
-			}
-
-			// SEI - 1-I
-			case 0x78:
-			{
-				PrintSingleCommand("SEI");
-				s_Flags[FlagInterrupt] = true;
-				return OpValue{ 1, 2 };
-			}
-
-			// ROR absolute,X (ROR $xxxx,X) - C-> x -> C - NZC
-			case 0x7E:
-			{
-				PrintCommand("ROR");
-				return RotateRightAbsoluteX(cpu);
-			}
-
-			// STA zeropage (STA $xx) - A->M  -
-			case 0x85:
-			{
-				PrintCommand("STA");
-				return StZeropage(cpu, &Registers::A);
-			}
-
-			// STX zeropage (STX $xx) - X->M -
-			case 0x86:
-			{
-				PrintCommand("STX");
-				return StZeropage(cpu, &Registers::X);
-			}
-
-			// DEY - Y-1->Y NZ
-			case 0x88:
-			{
-				PrintSingleCommand("DEY");
-				return Dec(&Registers::Y);
-			}
-
-			// TXA
-			case 0x8A:
-			{
-				PrintSingleCommand("TXA");
-				return Transfer(&Registers::X, &Registers::A);
-			}
-			// STA absolute (STA $xxxx) - A->M -
-			case 0x8D:
-			{
-				PrintCommand("STA");
-				return StAbsolute(cpu, &Registers::A);
-			}
-
-			// BCC
-			case 0x90:
-			{
-				PrintCommand("BCC");
-				return Branch(cpu, FlagCarry, false);
-			}
-
-			// STA indirect (STA ($xx),Y) - A->M -
-			case 0x91:
-			{
-				PrintCommand("STA");
-				return StaIndirectIndexed(cpu);
-			}
-
-			// STA abs, Y (STA #$xx,Y) -
-			case 0x99:
-			{
-				PrintCommand("STA");
-				return StaAbsoluteReg(cpu, &Registers::Y);
-			}
-			
-			// TXS - X->SP -
-			case 0x9A:
-			{
-				PrintSingleCommand("TXS");
-				s_Registers.SP = s_Registers.X;
-				return OpValue{ 1, 2 };
-			}
-
-			// STA absolute X (STA $xx, X) - A->M
-			case 0x9D:
-			{
-				PrintCommand("STA");
-				return StaAbsoluteReg(cpu, &Registers::X);
-			}
-
-			// LDY immediate (LDY #$xx) - M->Y NZ
-			case 0xA0:
-			{
-				PrintCommand("LDY imm");
-				return LdImmediate(cpu, &Registers::Y);
-			}
-
-			// LDX immediate (LDX #xxxx) - M->X NZ
-			case 0xA2:
-			{
-				PrintCommand("LDX");
-				return LdImmediate(cpu, &Registers::X);
-			}
-
-			// LDA zeropage (LDA $xx) - M->A - NZ
-			case 0xA5:
-			{
-				PrintCommand("LDA");
-				return LdZeropage(cpu, &Registers::A);
-			}
-
-			// TAY
-			case 0xA8:
-			{
-				PrintSingleCommand("TAY");
-				return Transfer(&Registers::A, &Registers::Y);
-			}
-
-			// LDA immediate (LDA #$xx) - M->A  NZ
-			case 0xA9:
-			{
-				PrintCommand("LDA");
-				return LdImmediate(cpu, &Registers::A);
-			}
-
-				
-			// TAX - A->X NZ
-			case 0xAA:
-			{
-				PrintCommand("TAX");
-				return Transfer(&Registers::A, &Registers::X);
-			}
-
-			// LDY absolute (LDY $xxxx) - M->Y NZ
-			case 0xAC:
-			{
-				PrintCommand("LDY");
-				return LdAbsolute(cpu, &Registers::Y);
-			}
-
-			// LDA absolute (LDA $xx) - M->A NZ
-			case 0xAD:
-			{
-				PrintCommand("LDA");
-				return LdAbsolute(cpu, &Registers::A);
-			}
-
-			// LDX absolute (LDX $xxxx) - M->X NZ
-			case 0xAE:
-			{
-				PrintCommand("LDX");
-				return LdAbsolute(cpu, &Registers::X);
-			}
-
-			// BCS (BCS #rel) - branch if C=1 -
-			case 0xB0:
-			{
-				PrintCommand("BCS");
-				return Branch(cpu, FlagCarry, true);
-			}
-
-			// LDA indirect, Y (LDA $xx),Y - NZ
-			case 0xB1:
-			{
-				PrintCommand("LDA");
-				return LdaIndirectIndex(cpu);
-			}
-
-			// LDA absolute X (LDA $xx,X) - M->A NZ
-			case 0xBD:
-			{
-				PrintCommand("LDA");
-				return LdAbsoluteReg(cpu, &Registers::A, &Registers::X, "X");
-			}
-
-			// LDX absolute Y (LDX $xx,Y) - M->Z NZ
-			case 0xBE:
-			{
-				PrintCommand("LDX");
-				return LdAbsoluteReg(cpu, &Registers::X, &Registers::Y, "Y");
-			}
-
-			// CPY immediate (CPY #$xx) - A-M  NZC
-			case 0xC0:
-			{
-				PrintCommand("CPY");
-				return CmpImmediate(cpu, &Registers::Y);
-			}
-
-			// INY - Y+1->Y NZ
-			case 0xC8:
-			{
-				PrintSingleCommand("INY");
-				return Inc(&Registers::Y);
-			}
-
-			// CMP immediate (CMP #$xx) - A-M  NZC
-			case 0xC9:
-			{
-				PrintCommand("CMP");
-				return CmpImmediate(cpu, &Registers::A);
-			}
-
-			// DEX implied - X-1->X NZ
-			case 0xCA:
-			{
-				PrintSingleCommand("DEX");
-				return Dec(&Registers::X);
-			}
-
-			// CPY absolute (CMP $xxxx) - Y-M  NZC
-			case 0xCC:
-			{
-				PrintCommand("CPY");
-				return CmpAbsolute(cpu, &Registers::Y);
-			}
-
-			// DEC absolute (DEC $xxxx) - M-1->M  NZ
-			case 0xCE:
-			{
-				PrintCommand("DEC");
-				return DecAbsolute(cpu);
-			}
-
-			// BNE relative (BNE #xx)
-			case 0xD0:
-			{
-				PrintCommand("BNE");
-				return Branch(cpu, FlagZero, false);
-			}
-
-			// CLD - 0->D
-			case 0xD8:
-			{
-				PrintSingleCommand("CLD");
-				s_Flags[FlagDecimal] = false;
-				return OpValue{ 1, 2 };
-			}
-	
-			// CPX immediate (CPX #$xx) - X-M  NZC
-			case 0xE0:
-			{
-				PrintCommand("CPX");
-				return CmpImmediate(cpu, &Registers::X);
-			}
-
-			// INC zeropage (INC $xx)
-			case 0xE6:
-			{
-				PrintCommand("INC");
-				return IncZeropage(cpu);
-			}
-
-			// INX implied
-			case 0xE8:
-			{
-				PrintSingleCommand("INX");
-				return Inc(&Registers::X);
-			}
-
-			// INC absolute (INC $xxxx)
-			case 0xEE:
-			{
-				PrintCommand("INC");
-				return IncAbsolute(cpu);
-			}
-
-			// BEQ relative (BEQ #xx)
-			case 0xF0:
-			{
-				PrintCommand("BEQ");
-				return Branch(cpu, FlagZero, true);
-			}
-
-			// SBC absolute, Y (SBC $xxxx,Y) - A - M - C' -> A  - NZCV
-			case 0xF9:
-			{
-				PrintCommand("SBC");
-				return SbcAbsoluteOffset(cpu, &Registers::Y, "Y");
-			}
-
-			default:
-				std::println("Invalid opcode: {:02x} @{:04x}", opCode, s_Registers.PC);
-				return std::nullopt;
-
+			fn = [](CPU& cpu) { return NOP(cpu); };
 		}
 
-		return std::nullopt;
+		SetupOpCodeArray();
 	}
 
 
@@ -1297,8 +907,6 @@ namespace emu
 
 		if (startVector == 0)
 		{
-//			std::uint16_t resetVector = (m_Memory.Read(s_Registers.PC + 1) << 8) + m_Memory.Read(s_Registers.PC);
-//			std::println("Reset vector: {:04x}", resetVector);
 			auto resetVector = 0xFFFC;
 			s_Registers.PC = m_Memory.Read(resetVector + 1) << 8 + m_Memory.Read(resetVector);
 		}
@@ -1318,20 +926,11 @@ namespace emu
 		}
 
 		auto freq = li.QuadPart; //  / 1'000.0;
-
-//		std::println("Queried frequency: {}", freq);
-
-//		if (freq < frequency)
-//			std::println("Too high frequency for QueryPerformanceFrequency");
-//
 		auto frequencyDivider = static_cast<double>(freq) / frequency;
-
-//		std::println("Frequency divider: {}", frequencyDivider);
 
 		std::uint64_t cycles{ 0 };
 
 		
-
 		while (m_Executing.load())
 		{
 			if (m_RunningMode.load() == RunningMode::Step)
@@ -1365,22 +964,21 @@ namespace emu
 					std::println("IRQ vector is unused in NES");
 				}
 
-
-				auto maybeExecuted = ExecuteOpcode(*this, m_Memory.Read(s_Registers.PC));
+				auto opCode = m_Memory.Read(s_Registers.PC);
+				auto maybeExecuted = s_OpCodes[opCode](*this);
 
 				if (!maybeExecuted)
 					break;
 
+				if (maybeExecuted->ClockCycles == 0)
+				{
+					std::println("Invalid opcode: {:02x}", opCode);
+					m_RunningMode.store(RunningMode::Halt);
+				}
+
 				s_Registers.PC += maybeExecuted->Size;
 
 				cycles += maybeExecuted->ClockCycles;
-
-//				if (cycles >= 3'000'000 && cycles < 3'000'005)
-//				{
-//					s_NMI.store(true);
-//					//				s_IRQ.store(true);
-//					//				break;
-//				}
 
 				std::int64_t countsElapsed{};
 
@@ -1396,7 +994,6 @@ namespace emu
 		}
 
 		std::println("Cycles: {}", cycles);
-		PrintRegisters();
 	}
 
 	auto CPU::GetRegisters() -> Registers&
