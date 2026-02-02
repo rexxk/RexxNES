@@ -55,8 +55,19 @@ namespace emu
 //		if (address == 0x2001)
 //			std::println("Writing to PPU ({:04x} = {:02x})", address, value);
 
-		if (address == 0x2005 || address == 0x2006)
+		if (address == 0x2005)
+		{
 			PPU::ToggleW();
+		}
+		else if (address == 0x2006)
+		{
+			PPU::TriggerPPUAddress();
+			PPU::ToggleW();
+		}
+		else if (address == 0x2007)
+		{
+			PPU::TriggerPPUData();
+		}
 
 		m_Data.at(address) = value;
 	}

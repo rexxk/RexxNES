@@ -5,6 +5,7 @@
 #include <print>
 #include <thread>
 
+
 using namespace std::chrono_literals;
 
 
@@ -23,6 +24,8 @@ static std::uint16_t RegT{};
 static std::uint8_t RegX{};
 static std::uint8_t RegW{};
 
+static std::atomic<bool> WritePPUAddress{};
+static std::atomic<bool> WritePPUData{};
 
 
 namespace emu
@@ -32,6 +35,16 @@ namespace emu
 		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
 	{
 		m_Pixels.resize(256 * 240);
+	}
+
+	auto PPU::TriggerPPUAddress() -> void
+	{
+		WritePPUAddress.store(true);
+	}
+
+	auto PPU::TriggerPPUData() -> void
+	{
+		WritePPUData.store(true);
 	}
 
 
@@ -46,8 +59,34 @@ namespace emu
 
 		std::println("Frametime: {}s", frameTime);
 
+		std::uint16_t ppuAddress{};
+
 		while (m_Executing.load())
 		{
+			// Check register data
+			{
+				if (WritePPUAddress.load())
+				{
+					auto value = m_CPUMemory.Read(PPUADDR);
+
+					if (RegW == 0) ppuAddress = (value << 8) & 0xFF00;
+					else if (RegW == 1) ppuAddress |= value;
+
+					WritePPUAddress.store(false);
+				}
+
+				if (WritePPUData.load())
+				{
+					auto value = m_CPUMemory.Read(PPUDATA);
+					m_PPUMemory.Write(ppuAddress, value);
+
+					std::uint8_t increment = m_CPUMemory.Read(PPUCTRL) & 0x04 ? 32 : 1;
+					ppuAddress += increment;
+
+					WritePPUData.store(false);
+				}
+			}
+	
 			// Clear VBlank flag
 			{
 				auto value = m_CPUMemory.Read(PPUSTATUS);

@@ -18,6 +18,9 @@ namespace emu
 		static auto ToggleW() -> void;
 		static auto ResetW() -> void;
 
+		static auto TriggerPPUAddress() -> void;
+		static auto TriggerPPUData() -> void;
+
 		auto Stop() -> void;
 
 		auto Execute() -> void;

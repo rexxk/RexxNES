@@ -144,7 +144,8 @@ auto main() -> int
 	std::thread ppuThread(&emu::PPU::Execute, &ppu);
 
 
-	int memoryPage{ 32 };
+	int memoryPage{ 0 };
+	int ppuMemoryPage{ 32 };
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -219,6 +220,19 @@ auto main() -> int
 			ImGui::End();
 		}
 
+		{
+			ImGui::Begin("PPU memory");
+
+			ImGui::InputInt("Page", &ppuMemoryPage);
+			if (ppuMemoryPage < 0) ppuMemoryPage = 0;
+			if (ppuMemoryPage > 0x7F) ppuMemoryPage = 0x7F;
+
+			ImGui::Separator();
+
+			ppuMemory.ViewPage(ppuMemoryPage);
+
+			ImGui::End();
+		}
 
 
 		ImGui::Render();
