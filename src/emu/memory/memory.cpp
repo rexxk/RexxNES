@@ -61,12 +61,12 @@ namespace emu
 		}
 		else if (address == 0x2006)
 		{
-			PPU::TriggerPPUAddress();
+			PPU::TriggerPPUAddress(value);
 			PPU::ToggleW();
 		}
 		else if (address == 0x2007)
 		{
-			PPU::TriggerPPUData();
+			PPU::TriggerPPUData(value);
 		}
 
 		m_Data.at(address) = value;

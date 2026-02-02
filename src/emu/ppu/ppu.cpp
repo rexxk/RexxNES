@@ -1,13 +1,17 @@
 #include "emu/ppu/ppu.h"
 #include "emu/cpu6502/cpu.h"
+#include "emu/memory/memory.h"
 
 #include <chrono>
+#include <cstdint>
 #include <print>
 #include <thread>
 
 
 using namespace std::chrono_literals;
 
+namespace emu
+{
 
 static constexpr std::uint16_t PPUCTRL = 0x2000;
 static constexpr std::uint16_t PPUMASK = 0x2001;
@@ -24,27 +28,32 @@ static std::uint16_t RegT{};
 static std::uint8_t RegX{};
 static std::uint8_t RegW{};
 
-static std::atomic<bool> WritePPUAddress{};
-static std::atomic<bool> WritePPUData{};
+
+static Memory PPUMemory{ 32 };
+static std::uint16_t PPUAddress{};
 
 
-namespace emu
-{
 
 	PPU::PPU(Memory& ppuMemory, Memory& cpuMemory, std::uint8_t nametableAlignment)
-		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
+		: m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
 	{
+		PPUMemory = ppuMemory;
 		m_Pixels.resize(256 * 240);
 	}
 
-	auto PPU::TriggerPPUAddress() -> void
+
+	auto PPU::TriggerPPUAddress(std::uint8_t value) -> void
 	{
-		WritePPUAddress.store(true);
+		if (RegW == 0) PPUAddress = (value << 8) & 0xFF00;
+		else if (RegW == 1) PPUAddress |= value;
 	}
 
-	auto PPU::TriggerPPUData() -> void
+	auto PPU::TriggerPPUData(std::uint8_t value) -> void
 	{
-		WritePPUData.store(true);
+		m_PPUMemory.Write(PPUAddress, value);
+
+		std::uint8_t increment = m_CPUMemory.Read(PPUCTRL) & 0x04 ? 32 : 1;
+		PPUAddress += increment;
 	}
 
 
@@ -59,34 +68,9 @@ namespace emu
 
 		std::println("Frametime: {}s", frameTime);
 
-		std::uint16_t ppuAddress{};
-
 		while (m_Executing.load())
 		{
-			// Check register data
-			{
-				if (WritePPUAddress.load())
-				{
-					auto value = m_CPUMemory.Read(PPUADDR);
 
-					if (RegW == 0) ppuAddress = (value << 8) & 0xFF00;
-					else if (RegW == 1) ppuAddress |= value;
-
-					WritePPUAddress.store(false);
-				}
-
-				if (WritePPUData.load())
-				{
-					auto value = m_CPUMemory.Read(PPUDATA);
-					m_PPUMemory.Write(ppuAddress, value);
-
-					std::uint8_t increment = m_CPUMemory.Read(PPUCTRL) & 0x04 ? 32 : 1;
-					ppuAddress += increment;
-
-					WritePPUData.store(false);
-				}
-			}
-	
 			// Clear VBlank flag
 			{
 				auto value = m_CPUMemory.Read(PPUSTATUS);

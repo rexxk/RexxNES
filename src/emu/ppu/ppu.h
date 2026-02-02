@@ -18,8 +18,8 @@ namespace emu
 		static auto ToggleW() -> void;
 		static auto ResetW() -> void;
 
-		static auto TriggerPPUAddress() -> void;
-		static auto TriggerPPUData() -> void;
+		static auto TriggerPPUAddress(std::uint8_t value) -> void;
+		static auto TriggerPPUData(std::uint8_t value) -> void;
 
 		auto Stop() -> void;
 
@@ -34,7 +34,6 @@ namespace emu
 		auto WriteMemory(std::uint16_t address, std::uint8_t value) -> void;
 
 	private:
-		Memory& m_PPUMemory;
 		Memory& m_CPUMemory;
 
 		std::uint8_t m_NametableAlignment{};
