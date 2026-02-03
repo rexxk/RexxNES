@@ -29,7 +29,7 @@ namespace emu
 	static std::uint8_t RegW{};
 	
 	
-	static Memory PPU_CIRAM{ 2 };
+	static Memory PPU_CIRAM{ 8 };
 	static std::uint16_t PPUAddress{};
 
 
@@ -84,7 +84,7 @@ namespace emu
 		{
 			// Copy CIRAM to 0x2000 in PPU memory
 			{
-				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x800);
+				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x2000);
 			}
 
 			// Clear VBlank flag
