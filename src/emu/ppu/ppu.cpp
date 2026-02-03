@@ -13,31 +13,30 @@ using namespace std::chrono_literals;
 namespace emu
 {
 
-static constexpr std::uint16_t PPUCTRL = 0x2000;
-static constexpr std::uint16_t PPUMASK = 0x2001;
-static constexpr std::uint16_t PPUSTATUS = 0x2002;
-static constexpr std::uint16_t OAMADDR = 0x2003;
-static constexpr std::uint16_t OAMDATA = 0x2004;
-static constexpr std::uint16_t PPUSCROLL = 0x2005;
-static constexpr std::uint16_t PPUADDR = 0x2006;
-static constexpr std::uint16_t PPUDATA = 0x2007;
-static constexpr std::uint16_t OAMDMA = 0x4014;
-
-static std::uint16_t RegV{};
-static std::uint16_t RegT{};
-static std::uint8_t RegX{};
-static std::uint8_t RegW{};
-
-
-static Memory PPUMemory{ 32 };
-static std::uint16_t PPUAddress{};
+	static constexpr std::uint16_t PPUCTRL = 0x2000;
+	static constexpr std::uint16_t PPUMASK = 0x2001;
+	static constexpr std::uint16_t PPUSTATUS = 0x2002;
+	static constexpr std::uint16_t OAMADDR = 0x2003;
+	static constexpr std::uint16_t OAMDATA = 0x2004;
+	static constexpr std::uint16_t PPUSCROLL = 0x2005;
+	static constexpr std::uint16_t PPUADDR = 0x2006;
+	static constexpr std::uint16_t PPUDATA = 0x2007;
+	static constexpr std::uint16_t OAMDMA = 0x4014;
+	
+	static std::uint16_t RegV{};
+	static std::uint16_t RegT{};
+	static std::uint8_t RegX{};
+	static std::uint8_t RegW{};
+	
+	
+	static Memory PPU_CIRAM{ 2 };
+	static std::uint16_t PPUAddress{};
 
 
 
 	PPU::PPU(Memory& ppuMemory, Memory& cpuMemory, std::uint8_t nametableAlignment)
-		: m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
+		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
 	{
-		PPUMemory = ppuMemory;
 		m_Pixels.resize(256 * 240);
 	}
 
@@ -48,11 +47,10 @@ static std::uint16_t PPUAddress{};
 		else if (RegW == 1) PPUAddress |= value;
 	}
 
-	auto PPU::TriggerPPUData(std::uint8_t value) -> void
+	auto PPU::TriggerPPUData(std::uint8_t value, std::uint8_t increment) -> void
 	{
-		m_PPUMemory.Write(PPUAddress, value);
+		PPU_CIRAM.Write(PPUAddress - 0x2000, value);
 
-		std::uint8_t increment = m_CPUMemory.Read(PPUCTRL) & 0x04 ? 32 : 1;
 		PPUAddress += increment;
 	}
 
@@ -70,6 +68,10 @@ static std::uint16_t PPUAddress{};
 
 		while (m_Executing.load())
 		{
+			// Copy CIRAM to 0x2000 in PPU memory
+			{
+				std::memset(m_PPUMemory.GetData() + 0x2000, *PPU_CIRAM.GetData(), 0x2000);
+			}
 
 			// Clear VBlank flag
 			{

@@ -66,7 +66,8 @@ namespace emu
 		}
 		else if (address == 0x2007)
 		{
-			PPU::TriggerPPUData(value);
+			std::uint8_t increment = Read(0x2000) & 0x04 ? 32 : 1;
+			PPU::TriggerPPUData(value, increment);
 		}
 
 		m_Data.at(address) = value;

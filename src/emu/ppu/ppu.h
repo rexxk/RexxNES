@@ -19,7 +19,7 @@ namespace emu
 		static auto ResetW() -> void;
 
 		static auto TriggerPPUAddress(std::uint8_t value) -> void;
-		static auto TriggerPPUData(std::uint8_t value) -> void;
+		static auto TriggerPPUData(std::uint8_t value, std::uint8_t increment) -> void;
 
 		auto Stop() -> void;
 
@@ -35,6 +35,7 @@ namespace emu
 
 	private:
 		Memory& m_CPUMemory;
+		Memory& m_PPUMemory;
 
 		std::uint8_t m_NametableAlignment{};
 

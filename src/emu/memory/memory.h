@@ -19,6 +19,8 @@ namespace emu
 		auto Read(std::uint16_t address) -> std::uint8_t;
 		auto Write(std::uint16_t address, std::uint8_t value) -> void;
 
+		auto GetData() -> auto { return m_Data.data(); }
+
 		auto ViewPage(uint8_t page) -> void;
 
 	private:
