@@ -41,17 +41,31 @@ namespace emu
 	}
 
 
-	auto PPU::TriggerPPUAddress(std::uint8_t value) -> void
+	auto PPU::WritePPUAddress(std::uint8_t value) -> void
 	{
 		if (RegW == 0) PPUAddress = (value << 8) & 0xFF00;
 		else if (RegW == 1) PPUAddress |= value;
 	}
 
-	auto PPU::TriggerPPUData(std::uint8_t value, std::uint8_t increment) -> void
+	auto PPU::WritePPUData(std::uint8_t value, std::uint8_t increment) -> void
 	{
 		PPU_CIRAM.Write(PPUAddress - 0x2000, value);
 
 		PPUAddress += increment;
+	}
+
+	auto PPU::ReadPPUAddress() -> std::uint16_t
+	{
+		return PPUAddress;
+	}
+
+	auto PPU::ReadPPUData(std::uint8_t increment) -> std::uint8_t
+	{
+		auto value = PPU_CIRAM.Read(PPUAddress - 0x2000);
+
+		PPUAddress += increment;
+
+		return value;
 	}
 
 
@@ -70,7 +84,7 @@ namespace emu
 		{
 			// Copy CIRAM to 0x2000 in PPU memory
 			{
-				std::memset(m_PPUMemory.GetData() + 0x2000, *PPU_CIRAM.GetData(), 0x2000);
+				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x800);
 			}
 
 			// Clear VBlank flag
@@ -91,15 +105,15 @@ namespace emu
 //				ProcessScanline(scanline);
 //			}
 
-			for (std::uint16_t index = 0; index < 32 * 30; index++)
-			{
-				auto nametableValue = ReadMemory(0x2000 + index);
-			}
-
-			for (std::uint16_t index = 0; index < 64; index++)
-			{
-				auto nametableAttribute = ReadMemory(0x23c0 + index);
-			}
+//			for (std::uint16_t index = 0; index < 32 * 30; index++)
+//			{
+//				auto nametableValue = ReadMemory(0x2000 + index);
+//			}
+//
+//			for (std::uint16_t index = 0; index < 64; index++)
+//			{
+//				auto nametableAttribute = ReadMemory(0x23c0 + index);
+//			}
 
 
 

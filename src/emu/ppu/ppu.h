@@ -18,8 +18,11 @@ namespace emu
 		static auto ToggleW() -> void;
 		static auto ResetW() -> void;
 
-		static auto TriggerPPUAddress(std::uint8_t value) -> void;
-		static auto TriggerPPUData(std::uint8_t value, std::uint8_t increment) -> void;
+		static auto WritePPUAddress(std::uint8_t value) -> void;
+		static auto WritePPUData(std::uint8_t value, std::uint8_t increment) -> void;
+
+		static auto ReadPPUAddress() -> std::uint16_t;
+		static auto ReadPPUData(std::uint8_t increment) -> std::uint8_t;
 
 		auto Stop() -> void;
 

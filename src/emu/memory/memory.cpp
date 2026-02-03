@@ -9,6 +9,9 @@
 namespace emu
 {
 
+	static std::uint16_t PPUAddress{};
+
+
 	Memory::Memory(size_t sizeKilobytes)
 		: m_Size(sizeKilobytes)
 	{
@@ -41,6 +44,16 @@ namespace emu
 //		else if (address == 0x2002)
 //			m_Data.at(address) |= 0x80;
 
+		if (address == 0x2007)
+		{
+			PPUAddress = PPU::ReadPPUAddress();
+			std::uint8_t increment = Read(0x2000) & 0x04 ? 32 : 1;
+			auto value = PPU::ReadPPUData(increment);
+			std::println("Reading PPUDATA @${:04x} : @{:02x}", m_Data.at(PPUAddress), value);
+
+			return value;
+		}
+
 		if (address == 0x2002)
 		{
 			m_Data.at(address) &= 0x7F;
@@ -61,13 +74,20 @@ namespace emu
 		}
 		else if (address == 0x2006)
 		{
-			PPU::TriggerPPUAddress(value);
+			PPU::WritePPUAddress(value);
 			PPU::ToggleW();
+
+			PPUAddress = PPU::ReadPPUAddress();
+
+			std::println("Write PPUAddress: {:04x}", PPUAddress);
 		}
 		else if (address == 0x2007)
 		{
+			PPUAddress = PPU::ReadPPUAddress();
 			std::uint8_t increment = Read(0x2000) & 0x04 ? 32 : 1;
-			PPU::TriggerPPUData(value, increment);
+			PPU::WritePPUData(value, increment);
+
+			std::println("Write PPUDATA @${:04x} : @{:02x}", PPUAddress, PPU::ReadPPUData(0));
 		}
 
 		m_Data.at(address) = value;
