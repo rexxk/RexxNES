@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <print>
 #include <thread>
+#include <ranges>
 
 
 using namespace std::chrono_literals;
@@ -181,6 +182,74 @@ namespace emu
 	auto PPU::WriteMemory(std::uint16_t address, std::uint8_t value) -> void
 	{
 		m_PPUMemory.Write(address, value);
+	}
+
+	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
+	{
+//		std::uint16_t baseAddress = 0x2000;
+		auto ppuCtrl = m_CPUMemory.Read(0x2000);
+
+		auto nametableOffset = ppuCtrl & 0x03;
+		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
+
+		for (std::uint32_t y = 0u; y < 240u; y++)
+		{
+			for (std::uint32_t x = 0u; x < 256u; x += 8u)
+			{
+				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
+
+				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
+
+				auto attributeValue = PPU_CIRAM.Read(attribute + nametableOffset * 0x400 + 0x3c0);
+				auto tileValue = PPU_CIRAM.Read(tile + nametableOffset * 0x400);
+
+				std::vector<std::uint8_t> tileData(16);
+
+				std::uint16_t tileByteAddress = 0;
+
+				// TODO: Remove, used for hardcoded debug tests
+				patternBaseAddress = 0;
+
+				for (auto& tileByte : tileData)
+					tileByte = m_PPUMemory.Read(patternBaseAddress + tileValue * 16u + tileByteAddress++);
+
+				for (auto col = 0u; col < 8u; col++)
+				{
+					auto row = y % 8u;
+
+					auto byte1 = tileData.at(col);
+					auto byte2 = tileData.at(col + 8);
+
+					std::uint8_t pixelValue{ 0u };
+
+					byte1 & 1 << (7 - col) ? pixelValue += 1 : pixelValue;
+					byte2 & 1 << (7 - col) ? pixelValue += 2 : pixelValue;
+
+					// Get palette data from pixelValue (0-3)
+					std::uint8_t spriteSelect = 0;
+					std::uint8_t paletteIndex = spriteSelect << 4 + (attributeValue & 0x3) << 2 + pixelValue & 0x3;
+
+					std::uint8_t colorValue = m_PPUMemory.Read(0x3F00 + paletteIndex);
+
+					if (colorValue)
+					{
+						std::uint32_t position = { (y * 256u + x + col) * 4u };
+						imageData[position + 0] = 255 / colorValue;
+						imageData[position + 1] = 255 / colorValue;
+						imageData[position + 2] = 255 / colorValue;
+						imageData[position + 3] = 255;
+					}
+
+//					std::uint32_t position = { (y * 256u + x + i) * 4u };
+//					imageData[position + 0] = tileData[0];
+//					imageData[position + 1] = tileData[4];
+//					imageData[position + 2] = tileData[8];
+//					imageData[position + 3] = 255;
+				}
+
+			}
+		}
+
 	}
 
 }

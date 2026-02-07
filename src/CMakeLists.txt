@@ -1,6 +1,7 @@
 # RexxNES/src
 
 
+add_subdirectory(display)
 add_subdirectory(emu)
 
 

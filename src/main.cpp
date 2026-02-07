@@ -1,3 +1,4 @@
+#include "display/texture.h"
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/dma.h"
 #include "emu/memory/memory.h"
@@ -29,7 +30,6 @@ struct ROMHeader
 	std::uint8_t Flags5{};
 	std::uint8_t Reserved[5]{};
 };
-
 
 
 auto main() -> int
@@ -143,9 +143,14 @@ auto main() -> int
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 	std::thread ppuThread(&emu::PPU::Execute, &ppu);
 
+	std::vector<std::uint8_t> imageData;
+	imageData.resize(256u * 240u * 4u);
 
-	int memoryPage{ 0 };
-	int ppuMemoryPage{ 32 };
+	int memoryPage{ 0u };
+	int ppuMemoryPage{ 32u };
+
+	emu::Texture displayTexture{ 256u, 240u };
+
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -234,6 +239,16 @@ auto main() -> int
 			ImGui::End();
 		}
 
+		{
+			ImGui::Begin("Graphics");
+
+			ppu.GenerateImageData(imageData);
+			displayTexture.SetData(imageData);
+//			UpdateTexture(displayTexture);
+			ImGui::Image(displayTexture.GetTexture(), ImVec2{ 512, 480 });
+
+			ImGui::End();
+		}
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

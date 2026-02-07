@@ -4,7 +4,9 @@
 
 #include <array>
 #include <atomic>
+#include <span>
 #include <vector>
+
 
 namespace emu
 {
@@ -28,6 +30,7 @@ namespace emu
 
 		auto Execute() -> void;
 
+		auto GenerateImageData(std::span<std::uint8_t> imageData) -> void;
 		auto GetInternalMemory() -> std::array<std::uint8_t, 0x100>& { return m_OAM; }
 
 	private:
