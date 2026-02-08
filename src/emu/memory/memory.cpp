@@ -27,7 +27,16 @@ namespace emu
 			return;
 		}
 
-		std::copy(std::begin(romData), std::end(romData), m_Data.data() + address);
+//		std::copy(std::begin(romData), std::end(romData), m_Data.data() + address);
+		std::uint16_t location{};
+
+		for (auto& data : romData)
+		{
+			if (!(m_Data.at(address + location)))
+				m_Data.at(address + location) = romData[location];
+		
+			location++;
+		}
 	}
 
 	auto Memory::Read(std::uint16_t address) -> std::uint8_t
