@@ -93,10 +93,11 @@ namespace emu
 		else if (address == 0x2007)
 		{
 			PPUAddress = PPU::ReadPPUAddress();
+			std::println("Write PPUDATA @${:04x} : @{:02x}", PPUAddress, value);
+
 			std::uint8_t increment = Read(0x2000) & 0x04 ? 32 : 1;
 			PPU::WritePPUData(value, increment);
 
-			std::println("Write PPUDATA @${:04x} : @{:02x}", PPUAddress, PPU::ReadPPUData(0));
 		}
 
 		m_Data.at(address) = value;
