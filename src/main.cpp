@@ -3,6 +3,7 @@
 #include "emu/memory/dma.h"
 #include "emu/memory/memory.h"
 #include "emu/ppu/ppu.h"
+#include "input/controller.h"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -50,6 +51,69 @@ auto main() -> int
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	GLFWwindow* window = glfwCreateWindow(800, 600, "RexxNES", nullptr, nullptr);
+
+	glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods)
+		{
+			switch (key)
+			{
+				case 32:
+				{
+					emu::Controller::SetState(emu::Button::Select, action == GLFW_PRESS);
+					break;
+				}
+
+				case 257:
+				{
+					emu::Controller::SetState(emu::Button::Start, action == GLFW_PRESS);
+					break;
+				}
+
+				case 262:
+				{
+					emu::Controller::SetState(emu::Button::Right, action == GLFW_PRESS);
+					break;
+				}
+
+				case 263:
+				{
+					emu::Controller::SetState(emu::Button::Left, action == GLFW_PRESS);
+					break;
+				}
+
+				case 264:
+				{
+					emu::Controller::SetState(emu::Button::Down, action == GLFW_PRESS);
+					break;
+				}
+
+				case 265:
+				{
+					emu::Controller::SetState(emu::Button::Up, action == GLFW_PRESS);
+					break;
+				}
+
+				case 341:
+				{
+					emu::Controller::SetState(emu::Button::A, action == GLFW_PRESS);
+					break;
+				}
+
+				case 342:
+				{
+					emu::Controller::SetState(emu::Button::B, action == GLFW_PRESS);
+					break;
+				}
+
+				default:
+				{
+					break;
+				}
+
+			}
+
+//			std::println("Key {} ({}) released", key, scancode);
+
+		});
 
 	glfwMakeContextCurrent(window);
 

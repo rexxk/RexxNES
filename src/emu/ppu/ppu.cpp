@@ -210,6 +210,7 @@ namespace emu
 		auto nametableOffset = ppuCtrl & 0x03;
 		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
 
+		// Draw background
 		for (std::uint32_t y = 0u; y < 240u; y++)
 		{
 			for (std::uint32_t x = 0u; x < 256u; x += 8u)
@@ -270,6 +271,10 @@ namespace emu
 			}
 		}
 
+		// Draw sprites
+		{
+
+		}
 	}
 
 }

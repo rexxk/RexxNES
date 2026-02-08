@@ -1,4 +1,5 @@
 #include "emu/cpu6502/cpu.h"
+#include "input/controller.h"
 
 #include <atomic>
 #include <array>
@@ -945,7 +946,7 @@ namespace emu
 			s_Registers.PC = startVector;
 
 		// Sets VBLANK flag - keep it static for debugging until PPU is implemented :-)
-		m_Memory.Write(0x2002, 0x80);
+//		m_Memory.Write(0x2002, 0x80);
 
 		const auto frequency = s_Frequency[FrequencyType::NTSC];
 		const auto cycleTime = 1'000'000'000 / frequency;
@@ -972,6 +973,10 @@ namespace emu
 				m_CV.wait(lock, [&] { 
 					return m_RunningMode.load() != RunningMode::Halt || m_Executing.load() == 0; 
 				});
+			}
+
+			{
+				m_Memory.Write(0x4016, Controller::GetButtonBits());
 			}
 
 			{
