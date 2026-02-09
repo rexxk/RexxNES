@@ -48,6 +48,8 @@ namespace emu
 		std::array<std::uint8_t, 0x100> m_OAM{};
 		std::vector<std::uint8_t> m_Pixels{};
 
+		std::span<std::uint8_t> m_MMIO;
+
 		std::atomic<bool> m_Executing{ false };
 	};
 

@@ -24,6 +24,16 @@ namespace emu
 	static constexpr std::uint16_t PPUDATA = 0x2007;
 	static constexpr std::uint16_t OAMDMA = 0x4014;
 	
+	static constexpr std::uint16_t IO_PPUCTRL = 0x0;
+	static constexpr std::uint16_t IO_PPUMASK = 0x1;
+	static constexpr std::uint16_t IO_PPUSTATUS = 0x2;
+	static constexpr std::uint16_t IO_OAMADDR = 0x3;
+	static constexpr std::uint16_t IO_OAMDATA = 0x4;
+	static constexpr std::uint16_t IO_PPUSCROLL = 0x5;
+	static constexpr std::uint16_t IO_PPUADDR = 0x6;
+	static constexpr std::uint16_t IO_PPUDATA = 0x7;
+
+
 	static std::uint16_t RegV{};
 	static std::uint16_t RegT{};
 	static std::uint8_t RegX{};
@@ -54,6 +64,11 @@ namespace emu
 		m_Pixels.resize(256 * 240);
 
 		std::uint16_t index{};
+
+
+		m_MMIO = std::span{ cpuMemory.GetVector() }.subspan(0x2000, 8);
+
+		//		m_MMIO = cpuMemory.GetData().subspan(0x2000, 8);
 
 		for (auto& color : Palette4)
 			m_PPUMemory.Write(0x3F00 + index, Palette4.at(index++));
@@ -108,9 +123,10 @@ namespace emu
 
 			// Clear VBlank flag
 			{
-				auto value = m_CPUMemory.Read(PPUSTATUS);
-				value &= 0x7F;
-				m_CPUMemory.Write(PPUSTATUS, value);
+//				auto value = m_CPUMemory.Read(PPUSTATUS);
+//				value &= 0x7F;
+//				m_CPUMemory.Write(PPUSTATUS, value);
+				m_MMIO[IO_PPUSTATUS] &= 0x7F;
 			}
 
 			// Do all frame processing
@@ -138,14 +154,16 @@ namespace emu
 
 			// Set VBlank flag
 			{
-				auto value = m_CPUMemory.Read(PPUSTATUS);
-				value |= 0x80;
-				m_CPUMemory.Write(PPUSTATUS, value);
+//				auto value = m_CPUMemory.Read(PPUSTATUS);
+//				value |= 0x80;
+//				m_CPUMemory.Write(PPUSTATUS, value);
+				m_MMIO[IO_PPUSTATUS] |= 0x80;
 			}
 
-			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
+//			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
 
-			if (ppuCtrl & 0x80)
+//			if (ppuCtrl & 0x80)
+			if (m_MMIO[IO_PPUCTRL] & 0x80)
 				CPU::TriggerNMI();
 
 			std::this_thread::sleep_for(16ms);
