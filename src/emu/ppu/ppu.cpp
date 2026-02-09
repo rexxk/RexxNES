@@ -123,15 +123,12 @@ namespace emu
 
 			// Clear VBlank flag
 			{
-//				auto value = m_CPUMemory.Read(PPUSTATUS);
-//				value &= 0x7F;
-//				m_CPUMemory.Write(PPUSTATUS, value);
 				m_MMIO[IO_PPUSTATUS] &= 0x7F;
 			}
 
 			// Do all frame processing
 			{
-				auto oamAddress = m_CPUMemory.Read(OAMADDR);
+				auto oamAddress = m_MMIO[IO_OAMADDR];
 			}
 
 
@@ -154,9 +151,6 @@ namespace emu
 
 			// Set VBlank flag
 			{
-//				auto value = m_CPUMemory.Read(PPUSTATUS);
-//				value |= 0x80;
-//				m_CPUMemory.Write(PPUSTATUS, value);
 				m_MMIO[IO_PPUSTATUS] |= 0x80;
 			}
 
@@ -222,11 +216,8 @@ namespace emu
 
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
-//		std::uint16_t baseAddress = 0x2000;
-		auto ppuCtrl = m_CPUMemory.Read(0x2000);
-
-		auto nametableOffset = ppuCtrl & 0x03;
-		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
+		auto nametableOffset = m_MMIO[IO_PPUCTRL] & 0x03;
+		std::uint16_t patternBaseAddress = m_MMIO[IO_PPUCTRL] & 0x10 ? 0x1000 : 0x0000;
 
 		// Draw background
 		for (std::uint32_t y = 0u; y < 240u; y++)
@@ -279,11 +270,6 @@ namespace emu
 						imageData[position + 3] = 255;
 					}
 
-//					std::uint32_t position = { (y * 256u + x + i) * 4u };
-//					imageData[position + 0] = tileData[0];
-//					imageData[position + 1] = tileData[4];
-//					imageData[position + 2] = tileData[8];
-//					imageData[position + 3] = 255;
 				}
 
 			}
