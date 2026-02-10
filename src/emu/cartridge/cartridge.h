@@ -31,6 +31,9 @@ namespace emu
 
 		auto GetAttributes() const -> const CartridgeAttributes&;
 
+		auto GetProgramROM() const -> auto { return m_ProgramROM; }
+		auto GetCharROM() const -> auto { return m_CharROM; }
+
 	private:
 		ROM m_ProgramROM{};
 		ROM m_CharROM{};
