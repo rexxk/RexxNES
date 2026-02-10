@@ -1,4 +1,5 @@
 #include "display/texture.h"
+#include "emu/cartridge/cartridge.h"
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/dma.h"
 #include "emu/memory/memory.h"
@@ -132,6 +133,9 @@ auto main() -> int
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init();
 	
+
+	emu::Cartridge cartridge("rom/SuperMarioBros.nes");
+
 
 	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
 
