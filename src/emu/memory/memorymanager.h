@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -26,9 +27,7 @@ namespace emu
 	struct MemoryChunk
 	{
 		std::uint16_t StartAddress{ 0l };
-		std::uint16_t EndAddress{ 0l };
-
-		std::span<std::uint8_t> Data{};
+		std::uint16_t Size{ 0l };
 
 		MemoryType Type{ MemoryType::RAM };
 		MemoryOwner Owner{ MemoryOwner::CPU };

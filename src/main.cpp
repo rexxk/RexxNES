@@ -3,6 +3,7 @@
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/dma.h"
 #include "emu/memory/memory.h"
+#include "emu/memory/memorymanager.h"
 #include "emu/ppu/ppu.h"
 #include "input/controller.h"
 
@@ -15,6 +16,7 @@
 
 #include <cstdint>
 #include <fstream>
+#include <memory>
 #include <print>
 #include <thread>
 #include <vector>
@@ -133,8 +135,29 @@ auto main() -> int
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init();
 	
+	emu::MemoryManager memoryManager;
 
 	emu::Cartridge cartridge("rom/SuperMarioBros.nes");
+
+	{
+		emu::MemoryChunk chunk{};
+		chunk.StartAddress = 0x8000;
+		chunk.Size = cartridge.GetProgramROM().GetSize();
+		chunk.Owner = emu::MemoryOwner::CPU;
+		chunk.Type = emu::MemoryType::ROM;
+
+		memoryManager.AddChunk(chunk);
+	}
+	
+	{
+		emu::MemoryChunk chunk{};
+		chunk.StartAddress = 0x0000;
+		chunk.Size = cartridge.GetCharROM().GetSize();
+		chunk.Owner = emu::MemoryOwner::PPU;
+		chunk.Type = emu::MemoryType::ROM;
+
+		memoryManager.AddChunk(chunk);
+	}
 
 
 	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
