@@ -6,7 +6,8 @@ namespace emu
 {
 
 
-	MemoryManager::MemoryManager()
+	MemoryManager::MemoryManager(Cartridge& cartridge)
+		: m_Cartridge(cartridge)
 	{
 
 	}
@@ -15,6 +16,7 @@ namespace emu
 	{
 
 	}
+
 
 
 }

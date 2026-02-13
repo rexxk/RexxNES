@@ -88,19 +88,23 @@ namespace emu
 		}
 
 		{
+			ROM newROM{};
 			auto romSize{ Header.ProgramROMSize * 0x4000 };
 			std::vector<std::uint8_t> programROM(romSize);
 			fs.read((char*)programROM.data(), romSize);
 
-			m_ProgramROM.SetData(romSize, programROM);
+			newROM.SetData(romSize, programROM);
+			m_ROMs[ROMType::Program] = newROM;
 		}
 
 		{
+			ROM newROM{};
 			auto romSize{ Header.CharROMSize * 0x2000 };
 			std::vector<std::uint8_t> charROM(romSize);
 			fs.read((char*)charROM.data(), romSize);
 
-			m_CharROM.SetData(romSize, charROM);
+			newROM.SetData(romSize, charROM);
+			m_ROMs[ROMType::Character] = newROM;
 		}
 
 		fs.close();

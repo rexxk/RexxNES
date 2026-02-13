@@ -17,6 +17,7 @@ namespace emu
 		SetData(size, data);
 	}
 
+
 	auto ROM::SetData(std::uint16_t size, std::span<std::uint8_t> data) -> void
 	{
 		m_Size = size;

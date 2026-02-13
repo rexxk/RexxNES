@@ -1,8 +1,12 @@
 #pragma once
 
+#include "emu/cartridge/cartridge.h"
+#include "emu/memory/rom.h"
+
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 
@@ -37,14 +41,18 @@ namespace emu
 	class MemoryManager
 	{
 	public:
-		MemoryManager();
+		explicit MemoryManager(Cartridge& cartridge);
 		~MemoryManager();
 
 		auto AddChunk(MemoryChunk& chunk) -> void { m_Chunks.push_back(chunk); }
 
+
 	private:
+		Cartridge& m_Cartridge;
+
 		std::vector<MemoryChunk> m_Chunks{};
 
+		std::unordered_map<ROMType, ROM> m_ROMs{};
 	};
 
 

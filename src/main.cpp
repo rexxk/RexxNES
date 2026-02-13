@@ -135,14 +135,13 @@ auto main() -> int
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init();
 	
-	emu::MemoryManager memoryManager;
-
 	emu::Cartridge cartridge("rom/SuperMarioBros.nes");
+	emu::MemoryManager memoryManager(cartridge);
 
 	{
 		emu::MemoryChunk chunk{};
 		chunk.StartAddress = 0x8000;
-		chunk.Size = cartridge.GetProgramROM().GetSize();
+		chunk.Size = cartridge.GetROM(emu::ROMType::Program).GetSize();
 		chunk.Owner = emu::MemoryOwner::CPU;
 		chunk.Type = emu::MemoryType::ROM;
 
@@ -152,7 +151,7 @@ auto main() -> int
 	{
 		emu::MemoryChunk chunk{};
 		chunk.StartAddress = 0x0000;
-		chunk.Size = cartridge.GetCharROM().GetSize();
+		chunk.Size = cartridge.GetROM(emu::ROMType::Character).GetSize();
 		chunk.Owner = emu::MemoryOwner::PPU;
 		chunk.Type = emu::MemoryType::ROM;
 

@@ -9,6 +9,12 @@
 namespace emu
 {
 
+	enum class ROMType
+	{
+		Program,
+		Character,
+	};
+
 
 	class ROM
 	{

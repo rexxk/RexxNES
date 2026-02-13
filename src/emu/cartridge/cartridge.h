@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <unordered_map>
 #include <vector>
 
 
@@ -31,13 +32,15 @@ namespace emu
 
 		auto GetAttributes() const -> const CartridgeAttributes&;
 
-		auto GetProgramROM() const -> auto { return m_ProgramROM; }
-		auto GetCharROM() const -> auto { return m_CharROM; }
+		auto GetROM(ROMType type) { return m_ROMs[type]; }
+//		auto GetProgramROM() const -> auto { return m_ProgramROM; }
+//		auto GetCharROM() const -> auto { return m_CharROM; }
 
 	private:
-		ROM m_ProgramROM{};
-		ROM m_CharROM{};
+//		ROM m_ProgramROM{};
+//		ROM m_CharROM{};
 
+		std::unordered_map<ROMType, ROM> m_ROMs{};
 		std::vector<std::uint8_t> m_Trainer{};
 
 	};
