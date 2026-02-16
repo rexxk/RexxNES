@@ -1,6 +1,6 @@
 #include "emu/ppu/ppu.h"
 #include "emu/cpu6502/cpu.h"
-#include "emu/memory/memory.h"
+#include "emu/memory/memorymanager.h"
 
 #include <chrono>
 #include <cstdint>
@@ -39,8 +39,6 @@ namespace emu
 	static std::uint8_t RegX{};
 	static std::uint8_t RegW{};
 	
-	
-	static Memory PPU_CIRAM{ 8 };
 	static std::uint16_t PPUAddress{};
 
 	static std::vector<std::uint32_t> PaletteColors
@@ -58,20 +56,45 @@ namespace emu
 		0x33, 0x20, 0x08, 0x16, 0x3F, 0x2B, 0x20, 0x3C, 0x2E, 0x27, 0x23, 0x31, 0x29, 0x32, 0x2C, 0x09,
 	};
 
-	PPU::PPU(Memory& ppuMemory, Memory& cpuMemory, std::uint8_t nametableAlignment)
-		: m_PPUMemory(ppuMemory), m_CPUMemory(cpuMemory), m_NametableAlignment(nametableAlignment)
+	PPU::PPU(MemoryManager& memoryManager, std::uint8_t nametableAlignment)
+		: m_MemoryManager(memoryManager), m_NametableAlignment(nametableAlignment)
 	{
 		m_Pixels.resize(256 * 240);
 
 		std::uint16_t index{};
 
+		{
+			// OAM (256 bytes)
+			MemoryChunk chunk{};
+			chunk.StartAddress = 0x0000;
+			chunk.Size = 0x200;
+			chunk.Type = MemoryType::RAM;
+			chunk.Owner = MemoryOwner::PPU;
+		}
 
-		m_MMIO = std::span{ cpuMemory.GetVector() }.subspan(0x2000, 8);
+		{
+			// PPU RAM (2k bytes)
+			MemoryChunk chunk{};
+			// TODO: StartAddress can be rewired with custom cartridge hardware
+			chunk.StartAddress = 0x2000;
+			chunk.Size = 0x2000;
+			chunk.Type = MemoryType::RAM;
+			chunk.Owner = MemoryOwner::PPU;
+		}
 
-		//		m_MMIO = cpuMemory.GetData().subspan(0x2000, 8);
+		{
+			// Palette
+			MemoryChunk chunk{};
+			chunk.StartAddress = 0x3F00;
+			chunk.Size = 0xFF;
+			chunk.Type = MemoryType::RAM;
+			chunk.Owner = MemoryOwner::PPU;
+
+			m_MemoryManager.AddChunk(chunk);
+		}
 
 		for (auto& color : Palette4)
-			m_PPUMemory.Write(0x3F00 + index, Palette4.at(index++));
+			m_MemoryManager.WriteMemory(MemoryOwner::PPU, 0x3F00 + index, Palette4.at(index++));
 	}
 
 
@@ -83,7 +106,7 @@ namespace emu
 
 	auto PPU::WritePPUData(std::uint8_t value, std::uint8_t increment) -> void
 	{
-		PPU_CIRAM.Write(PPUAddress - 0x2000, value);
+//		PPU_CIRAM.Write(PPUAddress - 0x2000, value);
 
 		PPUAddress += increment;
 	}
@@ -95,11 +118,12 @@ namespace emu
 
 	auto PPU::ReadPPUData(std::uint8_t increment) -> std::uint8_t
 	{
-		auto value = PPU_CIRAM.Read(PPUAddress - 0x2000);
+//		auto value = PPU_CIRAM.Read(PPUAddress - 0x2000);
 
 		PPUAddress += increment;
 
-		return value;
+//		return value;
+		return 0;
 	}
 
 
@@ -118,17 +142,22 @@ namespace emu
 		{
 			// Copy CIRAM to 0x2000 in PPU memory
 			{
-				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x2000);
+//				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x2000);
 			}
 
 			// Clear VBlank flag
 			{
-				m_MMIO[IO_PPUSTATUS] &= 0x7F;
+//				m_MMIO[IO_PPUSTATUS] &= 0x7F;
+
+//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::PPU, IO_PPUSTATUS);
+				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				value &= 0x7F;
+//				m_MemoryManager.WriteMemory(MemoryOwner::PPU, IO_PPUSTATUS, value);
 			}
 
 			// Do all frame processing
 			{
-				auto oamAddress = m_MMIO[IO_OAMADDR];
+//				auto oamAddress = m_MMIO[IO_OAMADDR];
 			}
 
 
@@ -151,13 +180,18 @@ namespace emu
 
 			// Set VBlank flag
 			{
-				m_MMIO[IO_PPUSTATUS] |= 0x80;
+//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::PPU, IO_PPUSTATUS);
+				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				value |= 0x80;
+//				m_MemoryManager.WriteMemory(MemoryOwner::PPU, IO_PPUSTATUS, value);
+//				m_MMIO[IO_PPUSTATUS] |= 0x80;
 			}
 
 //			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
 
 //			if (ppuCtrl & 0x80)
-			if (m_MMIO[IO_PPUCTRL] & 0x80)
+//			if (m_MMIO[IO_PPUCTRL] & 0x80)
+			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
 				CPU::TriggerNMI();
 
 			std::this_thread::sleep_for(16ms);
@@ -206,18 +240,20 @@ namespace emu
 
 	auto PPU::ReadMemory(std::uint16_t address) -> std::uint8_t
 	{
-		return m_PPUMemory.Read(address);
+		return m_MemoryManager.ReadMemory(MemoryOwner::PPU, address);
 	}
 
 	auto PPU::WriteMemory(std::uint16_t address, std::uint8_t value) -> void
 	{
-		m_PPUMemory.Write(address, value);
+		m_MemoryManager.WriteMemory(MemoryOwner::PPU, address, value);
 	}
 
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
-		auto nametableOffset = m_MMIO[IO_PPUCTRL] & 0x03;
-		std::uint16_t patternBaseAddress = m_MMIO[IO_PPUCTRL] & 0x10 ? 0x1000 : 0x0000;
+//		auto nametableOffset = m_MMIO[IO_PPUCTRL] & 0x03;
+		auto nametableOffset = m_MemoryManager.GetIOAddress(IO_PPUCTRL) & 0x03;
+//		std::uint16_t patternBaseAddress = m_MMIO[IO_PPUCTRL] & 0x10 ? 0x1000 : 0x0000;
+		std::uint16_t patternBaseAddress = m_MemoryManager.GetIOAddress(IO_PPUCTRL) & 0x10 ? 0x1000 : 0x0000;
 
 		// Draw background
 		for (std::uint32_t y = 0u; y < 240u; y++)
@@ -228,8 +264,10 @@ namespace emu
 
 				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
 
-				auto attributeValue = PPU_CIRAM.Read(attribute + nametableOffset * 0x400 + 0x3c0);
-				auto tileValue = PPU_CIRAM.Read(tile + nametableOffset * 0x400);
+//				auto attributeValue = PPU_CIRAM.Read(attribute + nametableOffset * 0x400 + 0x3c0);
+				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, attribute + nametableOffset * 0x400 + 0x3c0);
+//				auto tileValue = PPU_CIRAM.Read(tile + nametableOffset * 0x400);
+				auto tileValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, tile + nametableOffset * 0x400);
 
 				std::vector<std::uint8_t> tileData(16);
 
@@ -239,7 +277,7 @@ namespace emu
 //				patternBaseAddress = 0;
 
 				for (auto& tileByte : tileData)
-					tileByte = m_PPUMemory.Read(patternBaseAddress + tileValue * 16u + tileByteAddress++);
+					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + tileValue * 16u + tileByteAddress++);
 
 				for (auto col = 0u; col < 8u; col++)
 				{

@@ -1,8 +1,6 @@
 #include "display/texture.h"
 #include "emu/cartridge/cartridge.h"
 #include "emu/cpu6502/cpu.h"
-#include "emu/memory/dma.h"
-#include "emu/memory/memory.h"
 #include "emu/memory/memorymanager.h"
 #include "emu/ppu/ppu.h"
 #include "input/controller.h"
@@ -178,39 +176,39 @@ auto main() -> int
 		memoryManager.AddChunk(chunk);
 	}
 
-	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
-
-	if (!fs.is_open())
-	{
-		std::println("Failed to open rom file");
-		return -1;
-	}
-
-	fs.seekg(0, fs.end);
-	std::size_t romSize = fs.tellg();
-	fs.seekg(0, fs.beg);
-
-//	std::println("ROM size: {} bytes", romSize);
-
-	ROMHeader romHeader{};
-	fs.read((char*)&romHeader, sizeof(ROMHeader));
-
-	if (romHeader.Flags1 & 0x04)
-	{
-		std::vector<uint8_t> trainerData(512);
-		std::println("512 bytes trainer is present");
-		fs.read((char*)trainerData.data(), 512);
-	}
-
-//	std::println("Reading prog ROM");
-
-	std::vector<uint8_t> programRom(romHeader.PrgRomSize * 0x4000);
-	fs.read((char*)programRom.data(), romHeader.PrgRomSize * 0x4000);
-
-//	std::println("Reading char ROM");
-
-	std::vector<uint8_t> charRom(romHeader.ChrRomSize * 0x2000);
-	fs.read((char*)charRom.data(), romHeader.ChrRomSize * 0x2000);
+//	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
+//
+//	if (!fs.is_open())
+//	{
+//		std::println("Failed to open rom file");
+//		return -1;
+//	}
+//
+//	fs.seekg(0, fs.end);
+//	std::size_t romSize = fs.tellg();
+//	fs.seekg(0, fs.beg);
+//
+////	std::println("ROM size: {} bytes", romSize);
+//
+//	ROMHeader romHeader{};
+//	fs.read((char*)&romHeader, sizeof(ROMHeader));
+//
+//	if (romHeader.Flags1 & 0x04)
+//	{
+//		std::vector<uint8_t> trainerData(512);
+//		std::println("512 bytes trainer is present");
+//		fs.read((char*)trainerData.data(), 512);
+//	}
+//
+////	std::println("Reading prog ROM");
+//
+//	std::vector<uint8_t> programRom(romHeader.PrgRomSize * 0x4000);
+//	fs.read((char*)programRom.data(), romHeader.PrgRomSize * 0x4000);
+//
+////	std::println("Reading char ROM");
+//
+//	std::vector<uint8_t> charRom(romHeader.ChrRomSize * 0x2000);
+//	fs.read((char*)charRom.data(), romHeader.ChrRomSize * 0x2000);
 
 //	std::println("File location: {}", static_cast<std::size_t>(fs.tellg()));
 
@@ -228,29 +226,31 @@ auto main() -> int
 //	std::println(" * Flags 9          : {:08b}", romHeader.Flags4);
 //	std::println(" * Flags 10         : {:08b}", romHeader.Flags5);
 
-	fs.close();
+//	fs.close();
+//
+//	std::uint8_t mapperID = (romHeader.Flags2 & 0xF0) + ((romHeader.Flags1 & 0xF0) >> 4);
+//
+//	std::println("Mapper ID#: {}", mapperID);
+//
+//	emu::Memory cpuMemory{64};
+//	cpuMemory.InstallROM(0x8000, programRom);
+//
+//	emu::Memory ppuMemory{32};
+//	ppuMemory.InstallROM(0x0000, charRom);
 
-	std::uint8_t mapperID = (romHeader.Flags2 & 0xF0) + ((romHeader.Flags1 & 0xF0) >> 4);
+//	std::uint8_t nametableAlignment = romHeader.Flags1 & 0x01;
+//	emu::PPU ppu{ memoryManager, nametableAlignment };
+	emu::PPU ppu{ memoryManager, cartridge.GetAttributes().NametableMirroring };
 
-	std::println("Mapper ID#: {}", mapperID);
+//	std::array<std::uint8_t, 0x100> asuMemory;
+//	emu::DMA oamDMA{ 0x4014, cpuMemory, ppu.GetInternalMemory() };
+//	emu::DMA dmcDMA{ 0x4015, cpuMemory, asuMemory };
 
-	emu::Memory cpuMemory{64};
-	cpuMemory.InstallROM(0x8000, programRom);
-
-	emu::Memory ppuMemory{32};
-	ppuMemory.InstallROM(0x0000, charRom);
-
-	std::uint8_t nametableAlignment = romHeader.Flags1 & 0x01;
-	emu::PPU ppu{ ppuMemory, cpuMemory, nametableAlignment };
-
-	std::array<std::uint8_t, 0x100> asuMemory;
-	emu::DMA oamDMA{ 0x4014, cpuMemory, ppu.GetInternalMemory() };
-	emu::DMA dmcDMA{ 0x4015, cpuMemory, asuMemory };
-
-	emu::CPU cpu{ cpuMemory, oamDMA, dmcDMA };
+//	emu::CPU cpu{ memoryManager, oamDMA, dmcDMA };
+	emu::CPU cpu{ memoryManager };
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
-	std::thread ppuThread(&emu::PPU::Execute, &ppu);
+//	std::thread ppuThread(&emu::PPU::Execute, &ppu);
 
 	std::vector<std::uint8_t> imageData;
 	imageData.resize(256u * 240u * 4u);
@@ -320,33 +320,33 @@ auto main() -> int
 			ImGui::End();
 		}
 
-		{
-			ImGui::Begin("Memory");
+//		{
+//			ImGui::Begin("Memory");
+//
+//			ImGui::InputInt("Page", &memoryPage);
+//			if (memoryPage < 0) memoryPage = 0;
+//			if (memoryPage > 0xFF) memoryPage = 0xFF;
+//
+//			ImGui::Separator();
+//
+//			cpuMemory.ViewPage(memoryPage);
+//
+//			ImGui::End();
+//		}
 
-			ImGui::InputInt("Page", &memoryPage);
-			if (memoryPage < 0) memoryPage = 0;
-			if (memoryPage > 0xFF) memoryPage = 0xFF;
-
-			ImGui::Separator();
-
-			cpuMemory.ViewPage(memoryPage);
-
-			ImGui::End();
-		}
-
-		{
-			ImGui::Begin("PPU memory");
-
-			ImGui::InputInt("Page", &ppuMemoryPage);
-			if (ppuMemoryPage < 0) ppuMemoryPage = 0;
-			if (ppuMemoryPage > 0x7F) ppuMemoryPage = 0x7F;
-
-			ImGui::Separator();
-
-			ppuMemory.ViewPage(ppuMemoryPage);
-
-			ImGui::End();
-		}
+//		{
+//			ImGui::Begin("PPU memory");
+//
+//			ImGui::InputInt("Page", &ppuMemoryPage);
+//			if (ppuMemoryPage < 0) ppuMemoryPage = 0;
+//			if (ppuMemoryPage > 0x7F) ppuMemoryPage = 0x7F;
+//
+//			ImGui::Separator();
+//
+//			ppuMemory.ViewPage(ppuMemoryPage);
+//
+//			ImGui::End();
+//		}
 
 		{
 			ImGui::Begin("Graphics");
@@ -369,7 +369,7 @@ auto main() -> int
 	cpu.Stop();
 	ppu.Stop();
 
-	ppuThread.join();
+//	ppuThread.join();
 	cpuThread.join();
 //	cpu.Execute(program, 0x1000);
 

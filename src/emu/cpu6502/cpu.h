@@ -1,7 +1,6 @@
 #pragma once
 
-#include "emu/memory/dma.h"
-#include "emu/memory/memory.h"
+#include "emu/memory/memorymanager.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -33,7 +32,8 @@ namespace emu
 	{
 	public:
 		CPU() = delete;
-		explicit CPU(Memory& memory, DMA& oamDMA, DMA& dmcDMA);
+//		explicit CPU(MemoryManager& memoryManager, DMA& oamDMA, DMA& dmcDMA);
+		explicit CPU(MemoryManager& memoryManager);
 
 		auto Stop() -> void;
 
@@ -66,9 +66,7 @@ namespace emu
 		//		auto AbsoluteAddress() -> uint16_t;
 
 	private:
-		DMA& m_OAMDMA;
-		DMA& m_DMCDMA;
-		Memory& m_Memory;
+		MemoryManager& m_MemoryManager;
 
 		std::uint16_t m_StartVector{ 0 };
 

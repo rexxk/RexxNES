@@ -26,6 +26,7 @@ namespace emu
 	{
 		CPU,
 		PPU,
+		ASU,
 		Cartridge,
 	};
 
@@ -51,6 +52,9 @@ namespace emu
 
 		auto ReadMemory(MemoryOwner owner, std::uint16_t address) -> std::uint8_t;
 		auto WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value) -> void;
+		auto GetIOAddress(std::uint16_t address) -> std::uint8_t&;
+
+		auto DMATransfer(MemoryOwner targetOwner) -> void;
 
 	private:
 		Cartridge& m_Cartridge;

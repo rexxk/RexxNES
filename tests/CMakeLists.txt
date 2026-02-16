@@ -7,7 +7,7 @@ add_executable(cpu_tests
 
 target_sources(cpu_tests PRIVATE
 			${CMAKE_SOURCE_DIR}/src/emu/cpu6502/cpu.cpp
-			${CMAKE_SOURCE_DIR}/src/emu/memory/memory.cpp
+			${CMAKE_SOURCE_DIR}/src/emu/memory/memorymanager.cpp
 )
 
 target_link_libraries(cpu_tests GTest::gtest_main)

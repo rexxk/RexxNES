@@ -41,8 +41,10 @@ namespace emu
 	static std::atomic<bool> s_NMI{ false };
 	static std::atomic<bool> s_IRQ{ false };
 
-	static std::atomic<bool> s_OAMDMA{ false };
-	static std::atomic<bool> s_DMCDMA{ false };
+	static std::uint8_t s_DMACycles{ 0 };
+
+//	static std::atomic<bool> s_OAMDMA{ false };
+//	static std::atomic<bool> s_DMCDMA{ false };
 
 	struct OpValue
 	{
@@ -254,7 +256,7 @@ namespace emu
 
 	auto CPU::ReadAddress(std::uint16_t address) -> std::uint8_t
 	{
-		return m_Memory.Read(address);
+		return m_MemoryManager.ReadMemory(MemoryOwner::CPU, address);
 	}
 
 	auto CPU::WriteAddress(std::uint16_t address, std::uint8_t value) -> void
@@ -262,15 +264,18 @@ namespace emu
 		// Check for OAM DMA write
 		if (address == 0x4014)
 		{
-			s_OAMDMA.store(true);
+			m_MemoryManager.DMATransfer(MemoryOwner::PPU);
+			s_DMACycles = 514;
 		}
 
 		if (address == 0x4015)
 		{
-			s_DMCDMA.store(true);
+			m_MemoryManager.DMATransfer(MemoryOwner::ASU);
+			s_DMACycles = 4;
+//			s_DMCDMA.store(true);
 		}
 
-		return m_Memory.Write(address, value);
+		return m_MemoryManager.WriteMemory(MemoryOwner::CPU, address, value);
 	}
 
 
@@ -308,7 +313,7 @@ namespace emu
 
 		PrintCommandArg(address);
 
-		return m_Memory.Read(address);
+		return m_MemoryManager.ReadMemory(MemoryOwner::CPU, address);
 	}
 
 	auto CPU::ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg, std::string_view regString) -> std::uint8_t
@@ -324,7 +329,7 @@ namespace emu
 
 	auto CPU::ReadIndirectIndexed() -> std::uint8_t
 	{
-		auto zeropageAddress = m_Memory.Read(s_Registers.PC + 1);
+		auto zeropageAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC + 1);
 
 		auto addressLow = ReadAddress(zeropageAddress);
 		auto addressHigh = ReadAddress(zeropageAddress + 1);
@@ -919,8 +924,8 @@ namespace emu
 	}
 
 
-	CPU::CPU(Memory& memory, DMA& oamDMA, DMA& dmcDMA)
-		: m_Memory(memory), m_OAMDMA(oamDMA), m_DMCDMA(dmcDMA)
+	CPU::CPU(MemoryManager& memoryManager)
+		: m_MemoryManager(memoryManager)
 	{
 		for (auto& fn : s_OpCodes)
 		{
@@ -928,6 +933,16 @@ namespace emu
 		}
 
 		SetupOpCodeArray();
+
+		{
+			MemoryChunk chunk{};
+			chunk.StartAddress = 0x0000;
+			chunk.Size = 0x8000;
+			chunk.Type = MemoryType::RAM;
+			chunk.Owner = MemoryOwner::CPU;
+
+			m_MemoryManager.AddChunk(chunk);
+		}
 	}
 
 
@@ -940,7 +955,7 @@ namespace emu
 		if (startVector == 0)
 		{
 			auto resetVector = 0xFFFC;
-			s_Registers.PC = m_Memory.Read(resetVector + 1) << 8 + m_Memory.Read(resetVector);
+			s_Registers.PC = m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector + 1) << 8 + m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector);
 		}
 		else
 			s_Registers.PC = startVector;
@@ -976,7 +991,7 @@ namespace emu
 			}
 
 			{
-				m_Memory.Write(0x4016, Controller::GetButtonBits());
+				m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x4016, Controller::GetButtonBits());
 			}
 
 			{
@@ -985,7 +1000,7 @@ namespace emu
 
 				uint16_t frameCycles{ 0 };
 
-				if (s_NMI.load())
+				if (!s_NMI.load())
 				{
 					s_NMI.store(false);
 
@@ -1002,19 +1017,19 @@ namespace emu
 				}
 
 				// DMC DMA takes precedense over OAM DMA. If both occurs at the same time, DMC runs first and OAM at next cycle.
-				if (s_DMCDMA.load())
-				{
-//					std::println("DMC DMA write triggered");
-					s_DMCDMA.store(false);
-				}
-				else if (s_OAMDMA.load())
-				{
-					s_OAMDMA.store(false);
+//				if (s_DMCDMA.load())
+//				{
+////					std::println("DMC DMA write triggered");
+//					s_DMCDMA.store(false);
+//				}
+//				else if (s_OAMDMA.load())
+//				{
+//					s_OAMDMA.store(false);
+//
+//					frameCycles += m_OAMDMA.Execute();
+//				}
 
-					frameCycles += m_OAMDMA.Execute();
-				}
-
-				auto opCode = m_Memory.Read(s_Registers.PC);
+				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);
 
 				if (!maybeExecuted)
@@ -1028,8 +1043,10 @@ namespace emu
 
 				s_Registers.PC += maybeExecuted->Size;
 
-				cycles += maybeExecuted->ClockCycles;
-				frameCycles += maybeExecuted->ClockCycles;
+				cycles += maybeExecuted->ClockCycles + s_DMACycles;
+				frameCycles += maybeExecuted->ClockCycles + s_DMACycles;
+
+				s_DMACycles = 0;
 
 				std::int64_t countsElapsed{};
 

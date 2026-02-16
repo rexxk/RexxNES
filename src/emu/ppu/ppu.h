@@ -1,6 +1,6 @@
 #pragma once
 
-#include "emu/memory/memory.h"
+#include "emu/memory/memorymanager.h"
 
 #include <array>
 #include <atomic>
@@ -15,7 +15,7 @@ namespace emu
 	{
 	public:
 		PPU() = delete;
-		PPU(Memory& ppuMemory, Memory& cpuMemory, std::uint8_t nametableAlignment);
+		PPU(MemoryManager& memoryManager, std::uint8_t nametableAlignment);
 
 		static auto ToggleW() -> void;
 		static auto ResetW() -> void;
@@ -40,8 +40,7 @@ namespace emu
 		auto WriteMemory(std::uint16_t address, std::uint8_t value) -> void;
 
 	private:
-		Memory& m_CPUMemory;
-		Memory& m_PPUMemory;
+		MemoryManager& m_MemoryManager;
 
 		std::uint8_t m_NametableAlignment{};
 
