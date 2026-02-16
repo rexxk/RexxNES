@@ -26,4 +26,9 @@ namespace emu
 		std::copy(data.begin(), data.end(), m_Data.data());
 	}
 
+	auto ROM::ReadAddress(std::uint16_t address) -> std::uint8_t
+	{
+		return m_Data.at(address);
+	}
+
 }

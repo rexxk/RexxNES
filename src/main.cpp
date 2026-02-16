@@ -164,6 +164,8 @@ auto main() -> int
 		chunk.Size = 8;
 		chunk.Owner = emu::MemoryOwner::PPU;
 		chunk.Type = emu::MemoryType::IO;
+
+		memoryManager.AddChunk(chunk);
 	}
 
 	{
@@ -172,6 +174,8 @@ auto main() -> int
 		chunk.Size = 0x18;
 		chunk.Owner = emu::MemoryOwner::PPU;
 		chunk.Type = emu::MemoryType::IO;
+
+		memoryManager.AddChunk(chunk);
 	}
 
 	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
