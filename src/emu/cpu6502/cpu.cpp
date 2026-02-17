@@ -924,8 +924,8 @@ namespace emu
 	}
 
 
-	CPU::CPU(MemoryManager& memoryManager)
-		: m_MemoryManager(memoryManager)
+	CPU::CPU(PowerHandler& powerHandler, MemoryManager& memoryManager)
+		: m_PowerHandler(powerHandler), m_MemoryManager(memoryManager)
 	{
 		for (auto& fn : s_OpCodes)
 		{
@@ -980,13 +980,12 @@ namespace emu
 		
 		while (m_Executing.load())
 		{
-			if (m_RunningMode.load() == RunningMode::Step)
-				m_RunningMode.store(RunningMode::Halt);
-
+			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
+				m_PowerHandler.SetState(PowerState::Suspended);
 			{
 				std::unique_lock<std::mutex> lock(m_Mutex);
 				m_CV.wait(lock, [&] { 
-					return m_RunningMode.load() != RunningMode::Halt || m_Executing.load() == 0; 
+					return m_PowerHandler.GetState() != PowerState::Suspended || m_Executing.load() == 0;
 				});
 			}
 
@@ -1038,7 +1037,8 @@ namespace emu
 				if (maybeExecuted->ClockCycles == 0)
 				{
 					std::println("Invalid opcode: {:02x}", opCode);
-					m_RunningMode.store(RunningMode::Halt);
+//					m_RunningMode.store(RunningMode::Halt);
+					m_PowerHandler.SetState(PowerState::Suspended);
 				}
 
 				s_Registers.PC += maybeExecuted->Size;
@@ -1080,9 +1080,8 @@ namespace emu
 		m_CV.notify_all();
 	}
 
-	auto CPU::SetRunningMode(RunningMode runningMode) -> void
-	{ 
-		m_RunningMode.store(runningMode);
+	auto CPU::UpdatePowerState() -> void
+	{
 		m_CV.notify_all();
 	}
 

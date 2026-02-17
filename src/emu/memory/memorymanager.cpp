@@ -49,8 +49,8 @@ namespace emu
 				else if (chunk.Type == MemoryType::ROM && owner == MemoryOwner::PPU)
 					return m_Cartridge.GetROM(ROMType::Character).ReadAddress(address - chunk.StartAddress);
 
-				if (chunk.Type == MemoryType::IO)
-					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
+//				if (chunk.Type == MemoryType::IO)
+//					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
 				else if (chunk.Type == MemoryType::RAM && owner == chunk.Owner)
 					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
 			}
@@ -96,7 +96,7 @@ namespace emu
 			if (chunk.Type == MemoryType::IO)
 			{
 				if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size)
-					return m_RAMs[chunk.ID].GetAddress(address);
+					return m_RAMs[chunk.ID].GetAddress(address - chunk.StartAddress);
 			}
 		}
 
@@ -131,7 +131,7 @@ namespace emu
 
 	auto ViewPage(std::span<std::uint8_t> memory, std::uint16_t address)
 	{
-		auto startAddress = MemoryPage * 0x200;
+		auto startAddress = MemoryPage * 0x100;
 
 		std::uint16_t count{ 0 };
 
@@ -179,8 +179,8 @@ namespace emu
 
 			if (ImGui::InputInt("Page", &MemoryPage))
 			{
-				if (MemoryPage < 0 || chunk.Size <= 0x200) MemoryPage = 0;
-				if (MemoryPage > ((chunk.Size / 512) - 1) && chunk.Size > 0x200) MemoryPage = (chunk.Size / 512) - 1;
+				if (MemoryPage < 0 || chunk.Size <= 0x100) MemoryPage = 0;
+				if (MemoryPage > ((chunk.Size / 256) - 1) && chunk.Size > 0x100) MemoryPage = (chunk.Size / 256) - 1;
 			}
 
 			ImGui::Separator();
@@ -188,7 +188,7 @@ namespace emu
 			if (chunk.Type == MemoryType::ROM && chunk.Owner == MemoryOwner::CPU) ViewPage(m_Cartridge.GetROM(ROMType::Program).GetData(), chunk.StartAddress);
 			if (chunk.Type == MemoryType::ROM && chunk.Owner == MemoryOwner::PPU) ViewPage(m_Cartridge.GetROM(ROMType::Character).GetData(), chunk.StartAddress);
 
-			if (chunk.Type == MemoryType::RAM)
+			if (chunk.Type == MemoryType::RAM || chunk.Type == MemoryType::IO)
 			{
 				ViewPage(m_RAMs.at(chunk.ID).GetData(), chunk.StartAddress);
 			}

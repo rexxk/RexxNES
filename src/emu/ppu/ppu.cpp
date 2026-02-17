@@ -1,6 +1,7 @@
 #include "emu/ppu/ppu.h"
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/memorymanager.h"
+#include "emu/system/powerhandler.h"
 
 #include <chrono>
 #include <cstdint>
@@ -39,8 +40,6 @@ namespace emu
 	static std::uint8_t RegX{};
 	static std::uint8_t RegW{};
 	
-	static std::uint16_t PPUAddress{};
-
 	static std::vector<std::uint32_t> PaletteColors
 	{
 		0x333, 0x014, 0x006, 0x326, 0x403, 0x503, 0x510, 0x420, 0x320, 0x120, 0x031, 0x040, 0x022, 0x111, 0x003, 0x020,
@@ -56,10 +55,11 @@ namespace emu
 		0x33, 0x20, 0x08, 0x16, 0x3F, 0x2B, 0x20, 0x3C, 0x2E, 0x27, 0x23, 0x31, 0x29, 0x32, 0x2C, 0x09,
 	};
 
-	PPU::PPU(MemoryManager& memoryManager, std::uint8_t nametableAlignment)
-		: m_MemoryManager(memoryManager), m_NametableAlignment(nametableAlignment)
+	PPU::PPU(PowerHandler& powerHandler, MemoryManager& memoryManager, std::uint8_t nametableAlignment)
+		: m_PowerHandler(powerHandler), m_MemoryManager(memoryManager), m_NametableAlignment(nametableAlignment)
 	{
 		m_Pixels.resize(256 * 240);
+		m_ImageData.resize(256u * 240u * 4u);
 
 		std::uint16_t index{};
 
@@ -102,33 +102,33 @@ namespace emu
 	}
 
 
-	auto PPU::WritePPUAddress(std::uint8_t value) -> void
-	{
-		if (RegW == 0) PPUAddress = (value << 8) & 0xFF00;
-		else if (RegW == 1) PPUAddress |= value;
-	}
-
-	auto PPU::WritePPUData(std::uint8_t value, std::uint8_t increment) -> void
-	{
-//		PPU_CIRAM.Write(PPUAddress - 0x2000, value);
-
-		PPUAddress += increment;
-	}
-
-	auto PPU::ReadPPUAddress() -> std::uint16_t
-	{
-		return PPUAddress;
-	}
-
-	auto PPU::ReadPPUData(std::uint8_t increment) -> std::uint8_t
-	{
-//		auto value = PPU_CIRAM.Read(PPUAddress - 0x2000);
-
-		PPUAddress += increment;
-
-//		return value;
-		return 0;
-	}
+//	auto PPU::WritePPUAddress(std::uint8_t value) -> void
+//	{
+//		if (RegW == 0) PPUAddress = (value << 8) & 0xFF00;
+//		else if (RegW == 1) PPUAddress |= value;
+//	}
+//
+//	auto PPU::WritePPUData(std::uint8_t value, std::uint8_t increment) -> void
+//	{
+////		PPU_CIRAM.Write(PPUAddress - 0x2000, value);
+//
+//		PPUAddress += increment;
+//	}
+//
+//	auto PPU::ReadPPUAddress() -> std::uint16_t
+//	{
+//		return PPUAddress;
+//	}
+//
+//	auto PPU::ReadPPUData(std::uint8_t increment) -> std::uint8_t
+//	{
+////		auto value = PPU_CIRAM.Read(PPUAddress - 0x2000);
+//
+//		PPUAddress += increment;
+//
+////		return value;
+//		return 0;
+//	}
 
 
 	auto PPU::Execute() -> void
@@ -144,6 +144,16 @@ namespace emu
 
 		while (m_Executing.load())
 		{
+			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
+				m_PowerHandler.SetState(PowerState::Suspended);
+			{
+				std::unique_lock<std::mutex> lock(m_Mutex);
+				m_CV.wait(lock, [&] {
+					return m_PowerHandler.GetState() != PowerState::Suspended || m_Executing.load() == 0;
+					});
+			}
+
+
 			// Copy CIRAM to 0x2000 in PPU memory
 			{
 //				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x2000);
@@ -195,9 +205,10 @@ namespace emu
 
 //			if (ppuCtrl & 0x80)
 //			if (m_MMIO[IO_PPUCTRL] & 0x80)
-//			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
-			if (auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUCTRL); value & 0x80)
+			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
 				CPU::TriggerNMI();
+
+			GenerateImageData(m_ImageData);
 
 			std::this_thread::sleep_for(16ms);
 
@@ -211,6 +222,10 @@ namespace emu
 		m_Executing.store(false);
 	}
 
+	auto PPU::UpdatePowerState() -> void
+	{
+		m_CV.notify_all();
+	}
 
 	auto PPU::ProcessScanline(std::uint16_t scanline) -> std::uint16_t
 	{
@@ -256,9 +271,11 @@ namespace emu
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
 //		auto nametableOffset = m_MMIO[IO_PPUCTRL] & 0x03;
-		auto nametableOffset = m_MemoryManager.GetIOAddress(IO_PPUCTRL) & 0x03;
+		auto nametableOffset = m_MemoryManager.GetIOAddress(PPUCTRL) & 0x03;
+//		auto nametableOffset = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUCTRL) & 0x03;
 //		std::uint16_t patternBaseAddress = m_MMIO[IO_PPUCTRL] & 0x10 ? 0x1000 : 0x0000;
-		std::uint16_t patternBaseAddress = m_MemoryManager.GetIOAddress(IO_PPUCTRL) & 0x10 ? 0x1000 : 0x0000;
+		std::uint16_t patternBaseAddress = m_MemoryManager.GetIOAddress(PPUCTRL) & 0x10 ? 0x1000 : 0x0000;
+//		std::uint16_t patternBaseAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUCTRL) & 0x10 ? 0x1000 : 0x0000;
 
 		// Draw background
 		for (std::uint32_t y = 0u; y < 240u; y++)

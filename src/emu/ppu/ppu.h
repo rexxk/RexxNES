@@ -1,9 +1,12 @@
 #pragma once
 
 #include "emu/memory/memorymanager.h"
+#include "emu/system/powerhandler.h"
 
 #include <array>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <span>
 #include <vector>
 
@@ -15,23 +18,20 @@ namespace emu
 	{
 	public:
 		PPU() = delete;
-		PPU(MemoryManager& memoryManager, std::uint8_t nametableAlignment);
+		PPU(PowerHandler& powerHandler, MemoryManager& memoryManager, std::uint8_t nametableAlignment);
 
 		static auto ToggleW() -> void;
 		static auto ResetW() -> void;
 
-		static auto WritePPUAddress(std::uint8_t value) -> void;
-		static auto WritePPUData(std::uint8_t value, std::uint8_t increment) -> void;
-
-		static auto ReadPPUAddress() -> std::uint16_t;
-		static auto ReadPPUData(std::uint8_t increment) -> std::uint8_t;
-
 		auto Stop() -> void;
+
+		auto UpdatePowerState() -> void;
 
 		auto Execute() -> void;
 
 		auto GenerateImageData(std::span<std::uint8_t> imageData) -> void;
 		auto GetInternalMemory() -> std::array<std::uint8_t, 0x100>& { return m_OAM; }
+		auto GetImageData() -> std::vector<std::uint8_t>& { return m_ImageData; }
 
 	private:
 		auto ProcessScanline(std::uint16_t scanline) -> std::uint16_t;
@@ -41,6 +41,7 @@ namespace emu
 
 	private:
 		MemoryManager& m_MemoryManager;
+		PowerHandler& m_PowerHandler;
 
 		std::uint8_t m_NametableAlignment{};
 
@@ -50,6 +51,12 @@ namespace emu
 		std::span<std::uint8_t> m_MMIO;
 
 		std::atomic<bool> m_Executing{ false };
+
+		std::condition_variable m_CV{};
+		std::mutex m_Mutex{};
+
+		std::vector<std::uint8_t> m_ImageData;
+
 	};
 
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "emu/memory/memorymanager.h"
+#include "emu/system/powerhandler.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -33,14 +34,13 @@ namespace emu
 	public:
 		CPU() = delete;
 //		explicit CPU(MemoryManager& memoryManager, DMA& oamDMA, DMA& dmcDMA);
-		explicit CPU(MemoryManager& memoryManager);
+		explicit CPU(PowerHandler& powerHandler, MemoryManager& memoryManager);
 
 		auto Stop() -> void;
 
 		static auto TriggerNMI() -> void;
 
-		auto SetRunningMode(RunningMode runningMode) -> void;
-		auto GetRunningMode() -> RunningMode { return m_RunningMode.load(); }
+		auto UpdatePowerState() -> void;
 
 		auto GetRegisters() -> Registers&;
 		auto GetFlags() -> const std::uint8_t;
@@ -67,11 +67,11 @@ namespace emu
 
 	private:
 		MemoryManager& m_MemoryManager;
+		PowerHandler& m_PowerHandler;
 
 		std::uint16_t m_StartVector{ 0 };
 
 		std::atomic<bool> m_Executing{ false };
-		std::atomic<RunningMode> m_RunningMode{ RunningMode::Halt };
 
 		std::condition_variable m_CV{};
 		std::mutex m_Mutex{};
