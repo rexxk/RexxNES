@@ -57,9 +57,10 @@ namespace emu
 			// OAM (256 bytes)
 			MemoryChunk chunk{};
 			chunk.StartAddress = 0x0000;
-			chunk.Size = 0x200;
+			chunk.Size = 0x100;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
+			chunk.Name = "OAM RAM";
 
 			m_MemoryManager.AddChunk(chunk);
 		}
@@ -72,17 +73,7 @@ namespace emu
 			chunk.Size = 0x2000;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
-
-			m_MemoryManager.AddChunk(chunk);
-		}
-
-		{
-			// Palette
-			MemoryChunk chunk{};
-			chunk.StartAddress = 0x3F00;
-			chunk.Size = 0x100;
-			chunk.Type = MemoryType::RAM;
-			chunk.Owner = MemoryOwner::PPU;
+			chunk.Name = "PPU RAM";
 
 			m_MemoryManager.AddChunk(chunk);
 		}
@@ -142,6 +133,7 @@ namespace emu
 					return m_PowerHandler.GetState() != PowerState::Suspended || m_Executing.load() == 0;
 					});
 			}
+
 
 
 			// Copy CIRAM to 0x2000 in PPU memory

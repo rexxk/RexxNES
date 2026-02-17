@@ -134,9 +134,6 @@ namespace emu
 
 	static auto Break(CPU& cpu) -> std::optional<OpValue>
 	{
-//		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
-//		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
-
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC) & 0xFF00) >> 8));
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC) & 0xFF));
 
@@ -264,13 +261,13 @@ namespace emu
 		// Check for OAM DMA write
 		if (address == 0x4014)
 		{
-			m_MemoryManager.DMATransfer(MemoryOwner::PPU);
+			m_MemoryManager.DMATransfer(MemoryOwner::PPU, value);
 			s_DMACycles = 514;
 		}
 
 		if (address == 0x4015)
 		{
-			m_MemoryManager.DMATransfer(MemoryOwner::ASU);
+			m_MemoryManager.DMATransfer(MemoryOwner::ASU, value);
 			s_DMACycles = 4;
 //			s_DMCDMA.store(true);
 		}
@@ -940,6 +937,7 @@ namespace emu
 			chunk.Size = 0x8000;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::CPU;
+			chunk.Name = "CPU RAM";
 
 			m_MemoryManager.AddChunk(chunk);
 		}

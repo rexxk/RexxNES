@@ -130,6 +130,7 @@ auto main() -> int
 		chunk.Size = cartridge.GetROM(emu::ROMType::Program).GetSize();
 		chunk.Owner = emu::MemoryOwner::CPU;
 		chunk.Type = emu::MemoryType::ROM;
+		chunk.Name = "Program ROM";
 
 		memoryManager.AddChunk(chunk);
 	}
@@ -140,6 +141,7 @@ auto main() -> int
 		chunk.Size = cartridge.GetROM(emu::ROMType::Character).GetSize();
 		chunk.Owner = emu::MemoryOwner::PPU;
 		chunk.Type = emu::MemoryType::ROM;
+		chunk.Name = "Char ROM";
 
 		memoryManager.AddChunk(chunk);
 	}
@@ -150,6 +152,7 @@ auto main() -> int
 		chunk.Size = 8;
 		chunk.Owner = emu::MemoryOwner::CPU;
 		chunk.Type = emu::MemoryType::IO;
+		chunk.Name = "PPU IO";
 
 		memoryManager.AddChunk(chunk);
 	}
@@ -160,6 +163,7 @@ auto main() -> int
 		chunk.Size = 0x18;
 		chunk.Owner = emu::MemoryOwner::CPU;
 		chunk.Type = emu::MemoryType::IO;
+		chunk.Name = "CPU IO";
 
 		memoryManager.AddChunk(chunk);
 	}
@@ -171,6 +175,7 @@ auto main() -> int
 		chunk.Size = 0x0010;
 		chunk.Owner = emu::MemoryOwner::ASU;
 		chunk.Type = emu::MemoryType::RAM;
+		chunk.Name = "ASU RAM";
 
 		memoryManager.AddChunk(chunk);
 	}

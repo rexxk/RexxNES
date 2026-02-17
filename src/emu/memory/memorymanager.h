@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -37,6 +38,8 @@ namespace emu
 
 		std::uint8_t ID{ 0l };
 
+		std::string Name{ "Noname" };
+
 		MemoryType Type{ MemoryType::RAM };
 		MemoryOwner Owner{ MemoryOwner::CPU };
 	};
@@ -54,7 +57,12 @@ namespace emu
 		auto WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value) -> void;
 		auto GetIOAddress(std::uint16_t address) -> std::uint8_t&;
 
-		auto DMATransfer(MemoryOwner targetOwner) -> void;
+		auto DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void;
+
+		auto HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void;
+
+		auto GetScrollXRegister() const -> const std::uint16_t;
+		auto GetScrollYRegister() const -> const std::uint16_t;
 
 		auto ViewMemory() -> void;
 

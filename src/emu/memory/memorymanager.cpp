@@ -13,6 +13,12 @@ namespace emu
 	static int SelectedChunk{ 0 };
 	static int MemoryPage{ 0 };
 
+	static std::uint16_t PPUAddress{ 0u };
+	static std::uint16_t OAMAddress{ 0u };
+	static bool RegisterW{ false };
+
+	static std::uint16_t ScrollX{ 0u };
+	static std::uint16_t ScrollY{ 0u };
 
 	MemoryManager::MemoryManager(Cartridge& cartridge)
 		: m_Cartridge(cartridge)
@@ -63,6 +69,10 @@ namespace emu
 
 	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value) -> void
 	{
+		// Special handling for PPUADDR and PPUDATA transfers
+		if (address >= 0x2003 || address <= 0x2007)
+			HandlePPUAddress(address, value);
+
 		for (auto& chunk : m_Chunks)
 		{
 			if (owner == chunk.Owner)
@@ -104,28 +114,85 @@ namespace emu
 		return m_RAMs[0xFF].GetAddress(0);
 	}
 
-	auto MemoryManager::DMATransfer(MemoryOwner targetOwner) -> void
+	auto MemoryManager::DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void
 	{
 		std::uint8_t addressHigh{};
 		std::uint16_t length{};
 
 		if (targetOwner == MemoryOwner::PPU)
 		{
-			addressHigh = ReadMemory(MemoryOwner::CPU, 0x4014);
 			length = 0x100;
 		}
 		else if (targetOwner == MemoryOwner::ASU)
 		{
-			addressHigh = ReadMemory(MemoryOwner::CPU, 0x4015);
 			length = 2;
 		}
 
-		std::uint16_t address = (addressHigh << 8) & 0xFF00;
+		std::uint16_t address = (value << 8) & 0xFF00;
 
 		for (auto i = 0; i < length; i++)
 		{
 			WriteMemory(targetOwner, i, ReadMemory(MemoryOwner::CPU, address + i));
 		}
+	}
+
+	auto MemoryManager::HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void
+	{
+		switch (address)
+		{
+			case 0x2003:
+			{
+				OAMAddress = value & 0x00FF;
+				break;
+			}
+
+			case 0x2004:
+			{
+				WriteMemory(MemoryOwner::PPU, OAMAddress, value);
+				break;
+			}
+
+			case 0x2005:
+			{
+				if (!RegisterW)
+					ScrollX = value;
+				else
+					ScrollY = value;
+
+				RegisterW = !RegisterW;
+				break;
+			}
+
+			case 0x2006:
+			{
+				if (!RegisterW)
+					PPUAddress = (value << 8) & 0xFF00;
+				else
+				{
+					PPUAddress += value;	
+				}
+
+				RegisterW = !RegisterW;
+
+				break;
+			}
+
+			case 0x2007:
+			{
+				WriteMemory(MemoryOwner::PPU, PPUAddress++, value);
+				break;
+			}
+		}
+	}
+
+	auto MemoryManager::GetScrollXRegister() const -> const std::uint16_t
+	{
+		return ScrollX;
+	}
+
+	auto MemoryManager::GetScrollYRegister() const -> const std::uint16_t
+	{
+		return ScrollY;
 	}
 
 
@@ -174,6 +241,10 @@ namespace emu
 			if (chunk.Owner == MemoryOwner::CPU) ImGui::Text("Owner: CPU");
 			if (chunk.Owner == MemoryOwner::PPU) ImGui::Text("Owner: PPU");
 			if (chunk.Owner == MemoryOwner::ASU) ImGui::Text("Owner: ASU");
+
+			ImGui::Separator();
+
+			ImGui::Text("%s", chunk.Name.c_str());
 
 			ImGui::Separator();
 
