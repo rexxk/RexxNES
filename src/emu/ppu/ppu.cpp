@@ -25,16 +25,6 @@ namespace emu
 	static constexpr std::uint16_t PPUDATA = 0x2007;
 	static constexpr std::uint16_t OAMDMA = 0x4014;
 	
-	static constexpr std::uint16_t IO_PPUCTRL = 0x0;
-	static constexpr std::uint16_t IO_PPUMASK = 0x1;
-	static constexpr std::uint16_t IO_PPUSTATUS = 0x2;
-	static constexpr std::uint16_t IO_OAMADDR = 0x3;
-	static constexpr std::uint16_t IO_OAMDATA = 0x4;
-	static constexpr std::uint16_t IO_PPUSCROLL = 0x5;
-	static constexpr std::uint16_t IO_PPUADDR = 0x6;
-	static constexpr std::uint16_t IO_PPUDATA = 0x7;
-
-
 	static std::uint16_t RegV{};
 	static std::uint16_t RegT{};
 	static std::uint8_t RegX{};
@@ -220,6 +210,7 @@ namespace emu
 	auto PPU::Stop() -> void
 	{
 		m_Executing.store(false);
+		m_CV.notify_all();
 	}
 
 	auto PPU::UpdatePowerState() -> void
