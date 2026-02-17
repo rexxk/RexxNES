@@ -160,7 +160,7 @@ auto main() -> int
 		emu::MemoryChunk chunk{};
 		chunk.StartAddress = 0x2000;
 		chunk.Size = 8;
-		chunk.Owner = emu::MemoryOwner::PPU;
+		chunk.Owner = emu::MemoryOwner::CPU;
 		chunk.Type = emu::MemoryType::IO;
 
 		memoryManager.AddChunk(chunk);
@@ -170,7 +170,7 @@ auto main() -> int
 		emu::MemoryChunk chunk{};
 		chunk.StartAddress = 0x4000;
 		chunk.Size = 0x18;
-		chunk.Owner = emu::MemoryOwner::PPU;
+		chunk.Owner = emu::MemoryOwner::CPU;
 		chunk.Type = emu::MemoryType::IO;
 
 		memoryManager.AddChunk(chunk);
@@ -347,6 +347,8 @@ auto main() -> int
 //
 //			ImGui::End();
 //		}
+
+		memoryManager.ViewMemory();
 
 		{
 			ImGui::Begin("Graphics");

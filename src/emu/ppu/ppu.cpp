@@ -70,6 +70,8 @@ namespace emu
 			chunk.Size = 0x200;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
+
+			m_MemoryManager.AddChunk(chunk);
 		}
 
 		{
@@ -80,13 +82,15 @@ namespace emu
 			chunk.Size = 0x2000;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
+
+			m_MemoryManager.AddChunk(chunk);
 		}
 
 		{
 			// Palette
 			MemoryChunk chunk{};
 			chunk.StartAddress = 0x3F00;
-			chunk.Size = 0xFF;
+			chunk.Size = 0x100;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
 

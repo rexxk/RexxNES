@@ -19,6 +19,8 @@ namespace emu
 
 		auto GetAddress(std::uint16_t address) -> std::uint8_t& { return m_Data.at(address); }
 
+		auto GetData() -> auto& { return m_Data; }
+
 	private:
 		std::uint16_t m_Size{};
 

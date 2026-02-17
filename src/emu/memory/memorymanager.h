@@ -56,6 +56,8 @@ namespace emu
 
 		auto DMATransfer(MemoryOwner targetOwner) -> void;
 
+		auto ViewMemory() -> void;
+
 	private:
 		Cartridge& m_Cartridge;
 
