@@ -253,12 +253,29 @@ namespace emu
 
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
-//		auto nametableOffset = m_MMIO[IO_PPUCTRL] & 0x03;
-		auto nametableOffset = m_MemoryManager.GetIOAddress(PPUCTRL) & 0x03;
-//		auto nametableOffset = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUCTRL) & 0x03;
-//		std::uint16_t patternBaseAddress = m_MMIO[IO_PPUCTRL] & 0x10 ? 0x1000 : 0x0000;
-		std::uint16_t patternBaseAddress = m_MemoryManager.GetIOAddress(PPUCTRL) & 0x10 ? 0x1000 : 0x0000;
-//		std::uint16_t patternBaseAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUCTRL) & 0x10 ? 0x1000 : 0x0000;
+		auto ppuCtrl = m_MemoryManager.GetIOAddress(PPUCTRL);
+		auto nametableOffset = ppuCtrl & 0x03;
+		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
+
+		std::vector<std::uint8_t> nametableData(32 * 30);
+
+		for (auto y = 0; y < 30; y++)
+		{
+			for (auto x = 0; x < 32; x++)
+			{
+				nametableData[y * 32 + x] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + y * 32 + x);
+			}
+		}
+
+		std::vector<std::uint8_t> attributeData(10 * 8);
+
+		for (auto y = 0; y < 8; y++)
+		{
+			for (auto x = 0; x < 10; x++)
+			{
+				attributeData[y * 10 + x] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + 0x3c0 + y * 10 + x);
+			}
+		}
 
 		// Draw background
 		for (std::uint32_t y = 0u; y < 240u; y++)
@@ -266,13 +283,12 @@ namespace emu
 			for (std::uint32_t x = 0u; x < 256u; x += 8u)
 			{
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
-
 				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
 
 //				auto attributeValue = PPU_CIRAM.Read(attribute + nametableOffset * 0x400 + 0x3c0);
-				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, attribute + nametableOffset * 0x400 + 0x3c0);
+				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
 //				auto tileValue = PPU_CIRAM.Read(tile + nametableOffset * 0x400);
-				auto tileValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, tile + nametableOffset * 0x400);
+				auto nametableValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + tile + nametableOffset * 0x400);
 
 				std::vector<std::uint8_t> tileData(16);
 
@@ -282,7 +298,7 @@ namespace emu
 //				patternBaseAddress = 0;
 
 				for (auto& tileByte : tileData)
-					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + tileValue * 16u + tileByteAddress++);
+					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
 
 				for (auto col = 0u; col < 8u; col++)
 				{
