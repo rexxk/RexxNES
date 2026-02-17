@@ -133,13 +133,16 @@ namespace emu
 	{
 		auto startAddress = MemoryPage * 0x200;
 
+		std::uint16_t count{ 0 };
+
 		for (auto row = 0; row < 16; row++)
 		{
 			std::string str = std::format("{:04x} : ", row * 16 + startAddress + address);
 
 			for (auto col = 0; col < 16; col++)
 			{
-				str += std::format("{:02x} ", memory[row * 16 + startAddress + col]);
+				if ((row * 16 + startAddress + col) < memory.size())
+					str += std::format("{:02x} ", memory[row * 16 + startAddress + col]);
 			}
 
 			ImGui::Text("%s", str.c_str());
@@ -151,9 +154,11 @@ namespace emu
 	{
 		ImGui::Begin("Memory");
 
-		ImGui::InputInt("Chunk", &SelectedChunk);
-		if (SelectedChunk < 0) SelectedChunk = 0;
-		if (SelectedChunk >= m_Chunks.size()) SelectedChunk = m_Chunks.size() - 1;
+		if (ImGui::InputInt("Chunk", &SelectedChunk))
+		{
+			if (SelectedChunk < 0) SelectedChunk = 0;
+			if (SelectedChunk >= m_Chunks.size()) SelectedChunk = m_Chunks.size() - 1;
+		}
 
 		// Chunk info block
 		{
@@ -172,9 +177,11 @@ namespace emu
 
 			ImGui::Separator();
 
-			ImGui::InputInt("Page", &MemoryPage);
-			if (MemoryPage < 0 || chunk.Size <= 0x200) MemoryPage = 0;
-			if (MemoryPage > ((chunk.Size / 512) - 1) && chunk.Size > 0x200) MemoryPage = (chunk.Size / 512) - 1;
+			if (ImGui::InputInt("Page", &MemoryPage))
+			{
+				if (MemoryPage < 0 || chunk.Size <= 0x200) MemoryPage = 0;
+				if (MemoryPage > ((chunk.Size / 512) - 1) && chunk.Size > 0x200) MemoryPage = (chunk.Size / 512) - 1;
+			}
 
 			ImGui::Separator();
 
@@ -186,9 +193,6 @@ namespace emu
 				ViewPage(m_RAMs.at(chunk.ID).GetData(), chunk.StartAddress);
 			}
 		}
-
-
-//		cpuMemory.ViewPage(memoryPage);
 
 		ImGui::End();
 	}

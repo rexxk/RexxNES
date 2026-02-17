@@ -176,6 +176,17 @@ auto main() -> int
 		memoryManager.AddChunk(chunk);
 	}
 
+	// ASU RAM chunk - move to ASU class later
+	{
+		emu::MemoryChunk chunk{};
+		chunk.StartAddress = 0x0000;
+		chunk.Size = 0x0010;
+		chunk.Owner = emu::MemoryOwner::ASU;
+		chunk.Type = emu::MemoryType::RAM;
+
+		memoryManager.AddChunk(chunk);
+	}
+
 //	std::ifstream fs("rom/SuperMarioBros.nes", std::ios::in | std::ios::binary);
 //
 //	if (!fs.is_open())
