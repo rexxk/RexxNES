@@ -950,7 +950,7 @@ namespace emu
 	{
 		m_Executing.store(true);
 
-		s_Flags[FlagInterrupt] = true;
+		s_Flags[FlagInterrupt] = false;
 
 		if (startVector == 0)
 		{
@@ -1000,7 +1000,7 @@ namespace emu
 
 				uint16_t frameCycles{ 0 };
 
-				if (!s_NMI.load())
+				if (s_NMI.load() && cycles > 500)
 				{
 					s_NMI.store(false);
 

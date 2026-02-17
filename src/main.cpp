@@ -250,7 +250,7 @@ auto main() -> int
 	emu::CPU cpu{ memoryManager };
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
-//	std::thread ppuThread(&emu::PPU::Execute, &ppu);
+	std::thread ppuThread(&emu::PPU::Execute, &ppu);
 
 	std::vector<std::uint8_t> imageData;
 	imageData.resize(256u * 240u * 4u);
@@ -371,7 +371,7 @@ auto main() -> int
 	cpu.Stop();
 	ppu.Stop();
 
-//	ppuThread.join();
+	ppuThread.join();
 	cpuThread.join();
 //	cpu.Execute(program, 0x1000);
 

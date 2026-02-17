@@ -153,10 +153,10 @@ namespace emu
 			{
 //				m_MMIO[IO_PPUSTATUS] &= 0x7F;
 
-//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::PPU, IO_PPUSTATUS);
-				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
+//				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
 				value &= 0x7F;
-//				m_MemoryManager.WriteMemory(MemoryOwner::PPU, IO_PPUSTATUS, value);
+				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
 			// Do all frame processing
@@ -184,10 +184,10 @@ namespace emu
 
 			// Set VBlank flag
 			{
-//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::PPU, IO_PPUSTATUS);
-				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
+//				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
 				value |= 0x80;
-//				m_MemoryManager.WriteMemory(MemoryOwner::PPU, IO_PPUSTATUS, value);
+				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 //				m_MMIO[IO_PPUSTATUS] |= 0x80;
 			}
 
@@ -195,7 +195,8 @@ namespace emu
 
 //			if (ppuCtrl & 0x80)
 //			if (m_MMIO[IO_PPUCTRL] & 0x80)
-			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
+//			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
+			if (auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUCTRL); value & 0x80)
 				CPU::TriggerNMI();
 
 			std::this_thread::sleep_for(16ms);

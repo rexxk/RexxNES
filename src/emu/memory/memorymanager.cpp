@@ -42,7 +42,7 @@ namespace emu
 	{
 		for (auto& chunk : m_Chunks)
 		{
-			if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size)
+			if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
 			{
 				if (chunk.Type == MemoryType::ROM && owner == MemoryOwner::CPU)
 					return m_Cartridge.GetROM(ROMType::Program).ReadAddress(address - chunk.StartAddress);
@@ -65,20 +65,23 @@ namespace emu
 	{
 		for (auto& chunk : m_Chunks)
 		{
-			if (chunk.Type == MemoryType::RAM)
+			if (owner == chunk.Owner)
 			{
-				if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
+				if (chunk.Type == MemoryType::RAM)
 				{
-					m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
-					return;
+					if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
+					{
+						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
+						return;
+					}
 				}
-			}
-			else if (chunk.Type == MemoryType::IO)
-			{
-				if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size)
+				else if (chunk.Type == MemoryType::IO)
 				{
-					m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
-					return;
+					if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size)
+					{
+						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
+						return;
+					}
 				}
 			}
 		}
