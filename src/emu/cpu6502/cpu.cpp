@@ -43,9 +43,6 @@ namespace emu
 
 	static std::uint8_t s_DMACycles{ 0 };
 
-//	static std::atomic<bool> s_OAMDMA{ false };
-//	static std::atomic<bool> s_DMCDMA{ false };
-
 	struct OpValue
 	{
 		std::uint8_t Size{ 0 };
@@ -1012,19 +1009,6 @@ namespace emu
 					s_IRQ.store(false);
 					std::println("IRQ vector is unused in NES");
 				}
-
-				// DMC DMA takes precedense over OAM DMA. If both occurs at the same time, DMC runs first and OAM at next cycle.
-//				if (s_DMCDMA.load())
-//				{
-////					std::println("DMC DMA write triggered");
-//					s_DMCDMA.store(false);
-//				}
-//				else if (s_OAMDMA.load())
-//				{
-//					s_OAMDMA.store(false);
-//
-//					frameCycles += m_OAMDMA.Execute();
-//				}
 
 				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);

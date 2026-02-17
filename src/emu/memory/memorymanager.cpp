@@ -55,8 +55,8 @@ namespace emu
 				else if (chunk.Type == MemoryType::ROM && owner == MemoryOwner::PPU)
 					return m_Cartridge.GetROM(ROMType::Character).ReadAddress(address - chunk.StartAddress);
 
-//				if (chunk.Type == MemoryType::IO)
-//					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
+				if (chunk.Type == MemoryType::IO)
+					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
 				else if (chunk.Type == MemoryType::RAM && owner == chunk.Owner)
 					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
 			}
@@ -70,7 +70,7 @@ namespace emu
 	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value) -> void
 	{
 		// Special handling for PPUADDR and PPUDATA transfers
-		if (address >= 0x2003 || address <= 0x2007)
+		if (address >= 0x2003 && address <= 0x2007)
 			HandlePPUAddress(address, value);
 
 		for (auto& chunk : m_Chunks)
