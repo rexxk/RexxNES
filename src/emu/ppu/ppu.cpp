@@ -173,7 +173,6 @@ namespace emu
 //			}
 
 
-
 			// Set VBlank flag
 			{
 				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);

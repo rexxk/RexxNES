@@ -54,7 +54,7 @@ namespace emu
 		auto AddChunk(MemoryChunk& chunk) -> void;
 
 		auto ReadMemory(MemoryOwner owner, std::uint16_t address) -> std::uint8_t;
-		auto WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value) -> void;
+		auto WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck = false) -> void;
 		auto GetIOAddress(std::uint16_t address) -> std::uint8_t&;
 
 		auto DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void;

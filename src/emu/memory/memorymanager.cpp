@@ -67,10 +67,10 @@ namespace emu
 		return m_RAMs[0xFF].ReadAddress(0);
 	}
 
-	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value) -> void
+	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck) -> void
 	{
 		// Special handling for PPUADDR and PPUDATA transfers
-		if (address >= 0x2003 && address <= 0x2007)
+		if (!skipPPUCheck && (address >= 0x2003 && address <= 0x2007))
 			HandlePPUAddress(address, value);
 
 		for (auto& chunk : m_Chunks)
@@ -148,7 +148,7 @@ namespace emu
 
 			case 0x2004:
 			{
-				WriteMemory(MemoryOwner::PPU, OAMAddress, value);
+				WriteMemory(MemoryOwner::PPU, OAMAddress, value, true);
 				break;
 			}
 
@@ -170,6 +170,7 @@ namespace emu
 				else
 				{
 					PPUAddress += value;	
+					std::println("PPUAddress: {:04x}", PPUAddress);
 				}
 
 				RegisterW = !RegisterW;
@@ -179,7 +180,8 @@ namespace emu
 
 			case 0x2007:
 			{
-				WriteMemory(MemoryOwner::PPU, PPUAddress++, value);
+				std::println("PPUData write: {:04x} = {:02x}", PPUAddress, value);
+				WriteMemory(MemoryOwner::PPU, PPUAddress++, value, true);
 				break;
 			}
 		}

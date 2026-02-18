@@ -39,6 +39,7 @@ namespace emu
 	static std::bitset<8> s_Flags{};
 
 	static std::atomic<bool> s_NMI{ false };
+	static std::atomic<bool> s_NMIRunning{ false };
 	static std::atomic<bool> s_IRQ{ false };
 
 	static std::uint8_t s_DMACycles{ 0 };
@@ -139,6 +140,10 @@ namespace emu
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
 
 		s_Flags[FlagBreak] = true;
+
+#if PRINT_COMMANDS
+		std::println("BRK");
+#endif
 
 		return OpValue{ 1, 7 };
 	}
@@ -720,6 +725,8 @@ namespace emu
 
 		s_Registers.PC = address;
 
+		s_NMIRunning.store(false);
+
 		return OpValue{ 0, 6 };
 	}
 
@@ -988,16 +995,18 @@ namespace emu
 				m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x4016, Controller::GetButtonBits());
 			}
 
+// Debug Vframe when PPU is disable
+//			m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x2002, 0x80);
+
 			{
 				LARGE_INTEGER startCount{};
 				QueryPerformanceCounter(&startCount);
 
 				uint16_t frameCycles{ 0 };
 
-				if (s_NMI.load() && cycles > 500)
+				if (s_NMI.load() && s_NMIRunning.load() == false && cycles > 500)
 				{
-					s_NMI.store(false);
-
+					s_NMIRunning.store(true);
 					Break(*this);
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
@@ -1009,6 +1018,8 @@ namespace emu
 					s_IRQ.store(false);
 					std::println("IRQ vector is unused in NES");
 				}
+
+				s_NMI.store(false);
 
 				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);
@@ -1069,6 +1080,9 @@ namespace emu
 
 	auto CPU::TriggerNMI() -> void
 	{
+		if (s_NMIRunning.load() == true)
+			return;
+
 		s_NMI.store(true);
 	}
 
