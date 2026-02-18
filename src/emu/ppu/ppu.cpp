@@ -266,14 +266,11 @@ namespace emu
 			}
 		}
 
-		std::vector<std::uint8_t> attributeData(10 * 8);
+		std::vector<std::uint8_t> attributeData(0x40);
 
-		for (auto y = 0; y < 8; y++)
+		for (auto i = 0; i < 0x40; i++)
 		{
-			for (auto x = 0; x < 10; x++)
-			{
-				attributeData[y * 10 + x] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + 0x3c0 + y * 10 + x);
-			}
+			attributeData[i] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + 0x3c0 + i);
 		}
 
 		// Draw background
@@ -282,12 +279,13 @@ namespace emu
 			for (std::uint32_t x = 0u; x < 256u; x += 8u)
 			{
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
+//				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
 				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
 
-//				auto attributeValue = PPU_CIRAM.Read(attribute + nametableOffset * 0x400 + 0x3c0);
-				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
-//				auto tileValue = PPU_CIRAM.Read(tile + nametableOffset * 0x400);
-				auto nametableValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + tile + nametableOffset * 0x400);
+//				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
+				auto attributeValue = attributeData[attribute];
+//				auto nametableValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + tile + nametableOffset * 0x400);
+				auto nametableValue = nametableData[tile];
 
 				std::vector<std::uint8_t> tileData(16);
 
