@@ -1011,6 +1011,8 @@ namespace emu
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
 
+//					m_PowerHandler.SetState(PowerState::SingleStep);
+
 					JmpAbsolute(*this);
 				}
 				else if (s_IRQ.load() && !s_Flags[FlagInterrupt])

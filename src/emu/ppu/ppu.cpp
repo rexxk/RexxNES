@@ -145,10 +145,10 @@ namespace emu
 			{
 //				m_MMIO[IO_PPUSTATUS] &= 0x7F;
 
-				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
+//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
 //				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
-				value &= 0x7F;
-				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
+//				value &= 0x7F;
+//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
 			// Do all frame processing

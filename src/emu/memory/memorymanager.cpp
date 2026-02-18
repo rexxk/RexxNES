@@ -56,7 +56,17 @@ namespace emu
 					return m_Cartridge.GetROM(ROMType::Character).ReadAddress(address - chunk.StartAddress);
 
 				if (chunk.Type == MemoryType::IO)
-					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
+				{
+					auto value = m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
+
+					// Reset Vblank on PPU_STATUS read
+					if (address == 0x2002)
+					{
+						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value & 0x7F);
+					}
+
+					return value;
+				}
 				else if (chunk.Type == MemoryType::RAM && owner == chunk.Owner)
 					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
 			}
@@ -121,6 +131,7 @@ namespace emu
 
 		if (targetOwner == MemoryOwner::PPU)
 		{
+//			std::println(" DMA 0x4014: {:02x}", value);
 			length = 0x100;
 		}
 		else if (targetOwner == MemoryOwner::ASU)
@@ -142,6 +153,7 @@ namespace emu
 		{
 			case 0x2003:
 			{
+//				std::println(" OAMAddress: {:02}", value);
 				OAMAddress = value & 0x00FF;
 				break;
 			}
@@ -158,6 +170,8 @@ namespace emu
 					ScrollX = value;
 				else
 					ScrollY = value;
+
+//				std::println(" ScrollX: {:02x}\n ScrollY: {:02x}", ScrollX, ScrollY);
 
 				RegisterW = !RegisterW;
 				break;
@@ -180,7 +194,7 @@ namespace emu
 
 			case 0x2007:
 			{
-				std::println("PPUData write: {:04x} = {:02x}", PPUAddress, value);
+//				std::println("PPUData write: {:04x} = {:02x}", PPUAddress, value);
 				WriteMemory(MemoryOwner::PPU, PPUAddress++, value, true);
 				break;
 			}
