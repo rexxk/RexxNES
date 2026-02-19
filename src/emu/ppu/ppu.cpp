@@ -275,7 +275,7 @@ namespace emu
 		}
 
 		// Draw background
-		if (ppuMask & 0x40)
+//		if (ppuMask & 0x40)
 		{
 			for (std::uint32_t y = 0u; y < 240u; y++)
 			{
