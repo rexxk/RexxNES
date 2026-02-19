@@ -732,15 +732,13 @@ namespace emu
 
 	static auto RotateLeft(CPU& cpu) -> std::optional<OpValue>
 	{
-		std::uint16_t value = s_Registers.A << 1;
-		bool carryFlag = (value & 0x100);
-		value += carryFlag;
+		bool carryFlag = (s_Registers.A & 0x80);
+		s_Registers.A <<= 1;
+		s_Registers.A += s_Flags[FlagCarry];
 
 		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
-		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
-
-		s_Registers.A = static_cast<std::uint8_t>(value);
+		s_Flags[FlagNegative] = static_cast<std::uint8_t>(s_Registers.A) & 0b1000'0000;
+		s_Flags[FlagZero] = static_cast<std::uint8_t>(s_Registers.A) == 0;
 
 		return OpValue{ 1, 2 };
 	}
@@ -750,15 +748,17 @@ namespace emu
 		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
 		PrintCommandArgAbsolute(address, "X");
 
-		std::uint16_t value = (std::uint8_t(0x00 << 8) + cpu.ReadAddress(address)) << 1;
-		bool carryFlag = (value & 0x100);
-		value += carryFlag;
+		std::uint8_t value = cpu.ReadAddress(address);
+
+		bool carryFlag = value & 0x80;
+		value <<= 1;
+		value += s_Flags[carryFlag];
 
 		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
-		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
 
-		cpu.WriteAddress(address, static_cast<std::uint8_t>(value));
+		cpu.WriteAddress(address, value);
 
 		return OpValue{ 3, 7 };
 	}
@@ -1025,6 +1025,9 @@ namespace emu
 
 				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);
+
+//				if (opCode == 0x60)
+//					m_PowerHandler.SetState(PowerState::Suspended);
 
 				if (!maybeExecuted)
 					break;

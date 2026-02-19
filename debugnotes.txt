@@ -1,0 +1,67 @@
+NES
+
+0200 - Sprite_Y_Position
+0203 - Sprite_X_Position
+
+0300 - VRAM_buffer1_offset
+0301 - VRAM_buffer1
+
+06fc - SavedJoypadBits
+074a - JoypadBitMask
+0758 - JoypadOverride
+
+0770 - OperMode
+0772 - OperMode_Task
+073c - ScreenRoutineTask
+
+0774 - DisableScreenFlag
+07a7 - PseudoRandomBitRegister
+0780 - Timers
+07ff - Warmboot validation
+
+
+808x - NonMaskableInterrupt
+80a1 - .ScreenOff
+80d0 - .InitBuffer
+80e7 -> ReadJoypads
+8104 - .DecTimers
+810e - .DecTimersLoop
+8116 - .SkipExpTimer
+811b - .NoDecTimers
+811d - .PauseSkip
+8134 - .RotPRandomBit
+815c - .SkipSprite0
+
+
+8178 - .SkipMainOper (?)
+
+8182 - PauseRoutine
+
+8212 - OperModeExecutionTree 
+
+8220 - MoveAllSpritesOffScreen
+8227 - .SprInitLoop
+
+8e04 - JumpEngine
+
+8e19 - InitializeNameTables
+8e2d - .WriteNTAddr
+8e3e - .InitNTLoop
+
+8e5c - ReadJoypads
+
+8edd - UpdateScreen
+8ee6 - InitScroll
+8eed - WritePPUreg1
+
+8f97 - UpdateTopScore
+8fa0 - .TopScoreCheck
+8fa1 - .GetScoreDiff
+8faf - .CopyScore
+
+90cc - InitializeMemory
+
+
+dc82 - unknown jump
+
+f2d1 - SoundEngine

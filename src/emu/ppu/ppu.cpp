@@ -252,6 +252,8 @@ namespace emu
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
 		auto ppuCtrl = m_MemoryManager.GetIOAddress(PPUCTRL);
+		auto ppuMask = m_MemoryManager.GetIOAddress(PPUMASK);
+
 		auto nametableOffset = ppuCtrl & 0x03;
 		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
 
@@ -273,66 +275,73 @@ namespace emu
 		}
 
 		// Draw background
-		for (std::uint32_t y = 0u; y < 240u; y++)
+		if (ppuMask & 0x40)
 		{
-			for (std::uint32_t x = 0u; x < 256u; x += 8u)
+			for (std::uint32_t y = 0u; y < 240u; y++)
 			{
-				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
-//				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
-				std::uint16_t attribute = (y / 32u) * 8u + x / 32u;
-
-//				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
-				auto attributeValue = attributeData[attribute];
-//				auto nametableValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + tile + nametableOffset * 0x400);
-				auto nametableValue = nametableData[tile];
-
-				std::vector<std::uint8_t> tileData(16);
-
-				std::uint16_t tileByteAddress = 0;
-
-				// TODO: Remove, used for hardcoded debug tests
-//				patternBaseAddress = 0;
-
-				for (auto& tileByte : tileData)
-					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
-
-				for (auto col = 0u; col < 8u; col++)
+				for (std::uint32_t x = 0u; x < 256u; x += 8u)
 				{
-					auto row = y % 8u;
+					std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
+					//				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
+					std::uint16_t attribute = (y / 32u) * 8u + x / 32u;
 
-					auto byte1 = tileData.at(col);
-					auto byte2 = tileData.at(col + 8);
+					//				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
+					auto attributeValue = attributeData[attribute];
+					//				auto nametableValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + tile + nametableOffset * 0x400);
+					auto nametableValue = nametableData[tile];
 
-					std::uint8_t pixelValue{ 0u };
+					std::vector<std::uint8_t> tileData(16);
 
-					byte1 & 1 << (7 - col) ? pixelValue += 1 : pixelValue;
-					byte2 & 1 << (7 - col) ? pixelValue += 2 : pixelValue;
+					std::uint16_t tileByteAddress = 0;
 
-					// Get palette data from pixelValue (0-3)
-					std::uint8_t spriteSelect = 0;
-					std::uint8_t paletteIndex = spriteSelect << 4 + (attributeValue & 0x3) << 2 + pixelValue & 0x3;
+					// TODO: Remove, used for hardcoded debug tests
+	//				patternBaseAddress = 0;
 
-//					std::uint8_t colorValue = m_PPUMemory.Read(0x3F00 + paletteIndex);
+					for (auto& tileByte : tileData)
+						tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
 
-					auto color = PaletteColors.at(Palette4.at(paletteIndex));
-
-					if (color)
+					for (auto col = 0u; col < 8u; col++)
 					{
-						std::uint32_t position = { (y * 256u + x + col) * 4u };
-						imageData[position + 0] = ((color & 0x0F00) >> 8) / 7.0f * 255;
-						imageData[position + 1] = ((color & 0x00F0) >> 4) / 7.0f * 255;
-						imageData[position + 2] = (color & 0x000F) / 7.0f * 255;
-						imageData[position + 3] = 255;
+						auto row = y % 8u;
+
+						auto byte1 = tileData.at(col);
+						auto byte2 = tileData.at(col + 8);
+
+						std::uint8_t pixelValue{ 0u };
+
+						byte1 & 1 << (7 - col) ? pixelValue += 1 : pixelValue;
+						byte2 & 1 << (7 - col) ? pixelValue += 2 : pixelValue;
+
+						// Get palette data from pixelValue (0-3)
+						std::uint8_t spriteSelect = 0;
+						std::uint8_t paletteIndex = spriteSelect << 4 + (attributeValue & 0x3) << 2 + pixelValue & 0x3;
+
+						//					std::uint8_t colorValue = m_PPUMemory.Read(0x3F00 + paletteIndex);
+
+						auto color = PaletteColors.at(Palette4.at(paletteIndex));
+
+						if (color)
+						{
+							std::uint32_t position = { (y * 256u + x + col) * 4u };
+							imageData[position + 0] = ((color & 0x0F00) >> 8) / 7.0f * 255;
+							imageData[position + 1] = ((color & 0x00F0) >> 4) / 7.0f * 255;
+							imageData[position + 2] = (color & 0x000F) / 7.0f * 255;
+							imageData[position + 3] = 255;
+						}
+
 					}
 
 				}
-
 			}
 		}
 
 		// Draw sprites
+		if (ppuMask & 0x10)
 		{
+			std::uint16_t spritePatternTable = ppuCtrl & 0x04 ? 0x1000 : 0x0000;
+			std::uint8_t spriteSize = ppuCtrl & 0x20 ? 1 : 0;
 
+			
 		}
 	}
 

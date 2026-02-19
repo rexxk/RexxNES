@@ -38,6 +38,9 @@ namespace emu
 		if (ControllerClock > 7)
 			ControllerClock = 0;
 
+//		if (ControllerClock == 4)
+//			return 1;
+
 		return value;
 	}
 
