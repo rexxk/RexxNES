@@ -172,6 +172,7 @@ namespace emu
 //				auto nametableAttribute = ReadMemory(0x23c0 + index);
 //			}
 
+			GenerateImageData(m_ImageData);
 
 			// Set VBlank flag
 			{
@@ -188,8 +189,6 @@ namespace emu
 //			if (m_MMIO[IO_PPUCTRL] & 0x80)
 			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
 				CPU::TriggerNMI();
-
-			GenerateImageData(m_ImageData);
 
 			std::this_thread::sleep_for(16ms);
 
@@ -280,7 +279,7 @@ namespace emu
 			{
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
 //				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
-				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
+				std::uint16_t attribute = (y / 32u) * 8u + x / 32u;
 
 //				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
 				auto attributeValue = attributeData[attribute];

@@ -47,49 +47,49 @@ auto main() -> int
 			{
 				case 32:
 				{
-					emu::Controller::SetState(emu::Button::Select, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::Select, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 257:
 				{
-					emu::Controller::SetState(emu::Button::Start, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::Start, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 262:
 				{
-					emu::Controller::SetState(emu::Button::Right, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::Right, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 263:
 				{
-					emu::Controller::SetState(emu::Button::Left, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::Left, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 264:
 				{
-					emu::Controller::SetState(emu::Button::Down, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::Down, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 265:
 				{
-					emu::Controller::SetState(emu::Button::Up, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::Up, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 341:
 				{
-					emu::Controller::SetState(emu::Button::A, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::A, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 
 				case 342:
 				{
-					emu::Controller::SetState(emu::Button::B, action == GLFW_PRESS);
+					emu::Controller::SetState(emu::Button::B, action == GLFW_PRESS || action == GLFW_REPEAT);
 					break;
 				}
 

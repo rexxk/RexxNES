@@ -1,4 +1,5 @@
 #include "emu/memory/memorymanager.h"
+#include "input/controller.h"
 
 #include <print>
 
@@ -19,6 +20,29 @@ namespace emu
 
 	static std::uint16_t ScrollX{ 0u };
 	static std::uint16_t ScrollY{ 0u };
+
+	static std::uint8_t ControllerClock{ 0u };
+
+
+
+	auto ReadController(std::uint8_t controllerID) -> std::uint8_t 
+	{
+		// TODO: Implement controller ID so that two controllers can be used. Controller 1 is hardcoded.
+		if (controllerID == 1)
+			return 0;
+
+		auto bits = Controller::GetButtonBits();
+
+		std::uint8_t value = (bits >> ControllerClock++) & 0x01;
+
+		if (ControllerClock > 7)
+			ControllerClock = 0;
+
+		return value;
+	}
+
+
+
 
 	MemoryManager::MemoryManager(Cartridge& cartridge)
 		: m_Cartridge(cartridge)
@@ -63,6 +87,16 @@ namespace emu
 					if (address == 0x2002)
 					{
 						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value & 0x7F);
+					}
+
+					if (address == 0x4016)
+					{
+						return ReadController(0);
+					}
+
+					if (address == 0x4017)
+					{
+						return ReadController(1);
 					}
 
 					return value;
