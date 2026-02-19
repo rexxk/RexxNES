@@ -1,4 +1,5 @@
 #include "display/texture.h"
+#include "emu/apu/apu.h"
 #include "emu/cartridge/cartridge.h"
 #include "emu/cpu6502/cpu.h"
 #include "emu/memory/memorymanager.h"
@@ -168,25 +169,15 @@ auto main() -> int
 		memoryManager.AddChunk(chunk);
 	}
 
-	// ASU RAM chunk - move to ASU class later
-	{
-		emu::MemoryChunk chunk{};
-		chunk.StartAddress = 0x0000;
-		chunk.Size = 0x0010;
-		chunk.Owner = emu::MemoryOwner::ASU;
-		chunk.Type = emu::MemoryType::RAM;
-		chunk.Name = "ASU RAM";
-
-		memoryManager.AddChunk(chunk);
-	}
-
 	emu::PowerHandler powerHandler{ emu::PowerState::Off };
 
 	emu::PPU ppu{ powerHandler, memoryManager, cartridge.GetAttributes().NametableMirroring };
+	emu::APU apu{ powerHandler, memoryManager };
 	emu::CPU cpu{ powerHandler, memoryManager };
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
 	std::thread ppuThread(&emu::PPU::Execute, &ppu);
+	std::thread apuThread(&emu::APU::Execute, &apu);
 
 
 	emu::Texture displayTexture{ 256u, 240u };
@@ -207,7 +198,7 @@ auto main() -> int
 		{
 			ImGui::Begin("CPU status");
 
-//			ImGui::Text("Frame count: %d", frameCount++);
+			//			ImGui::Text("Frame count: %d", frameCount++);
 
 			auto flags = cpu.GetFlags();
 			ImGui::Text("Flag register:");
@@ -238,11 +229,11 @@ auto main() -> int
 
 			ImGui::Text("Execution control");
 
-//			if (ImGui::Button("Run")) cpu.SetRunningMode(emu::RunningMode::Run);
-//			ImGui::SameLine();
-//			if (ImGui::Button("Halt")) cpu.SetRunningMode(emu::RunningMode::Halt);
-//			ImGui::SameLine();
-//			if (ImGui::Button("Step")) cpu.SetRunningMode(emu::RunningMode::Step);
+			//			if (ImGui::Button("Run")) cpu.SetRunningMode(emu::RunningMode::Run);
+			//			ImGui::SameLine();
+			//			if (ImGui::Button("Halt")) cpu.SetRunningMode(emu::RunningMode::Halt);
+			//			ImGui::SameLine();
+			//			if (ImGui::Button("Step")) cpu.SetRunningMode(emu::RunningMode::Step);
 
 			if (ImGui::Button("Run"))
 			{
@@ -252,7 +243,7 @@ auto main() -> int
 			}
 
 			ImGui::SameLine();
-			
+
 			if (ImGui::Button("Halt"))
 			{
 				powerHandler.SetState(emu::PowerState::Suspended);
@@ -261,7 +252,7 @@ auto main() -> int
 			}
 
 			ImGui::SameLine();
-			
+
 			if (ImGui::Button("Step"))
 			{
 				powerHandler.SetState(emu::PowerState::SingleStep);
@@ -281,7 +272,7 @@ auto main() -> int
 		{
 			ImGui::Begin("Graphics");
 
-//			ppu.GenerateImageData(imageData);
+			//			ppu.GenerateImageData(imageData);
 			displayTexture.SetData(ppu.GetImageData());
 			ImGui::Image(displayTexture.GetTexture(), ImVec2{ 512, 480 });
 
@@ -297,7 +288,9 @@ auto main() -> int
 
 	cpu.Stop();
 	ppu.Stop();
+	apu.Stop();
 
+	apuThread.join();
 	ppuThread.join();
 	cpuThread.join();
 
