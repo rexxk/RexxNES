@@ -10,6 +10,8 @@ NES
 074a - JoypadBitMask
 0758 - JoypadOverride
 
+0750 - AreaPointer
+
 0770 - OperMode
 0772 - OperMode_Task
 073c - ScreenRoutineTask
@@ -63,11 +65,18 @@ NES
 8faf - .CopyScore
 
 8fcf - InitializeGame
+8fed - .ClrTimersLoop
+8ffe - .StartPage
+9012 - .SetInitNTHigh
 
 90cc - InitializeMemory
 
 9c03 - LoadAreaPointer
 
 9c13 - FindAreaPointer
+
+9c22 - GetAreaDataAddrs
+
+b038 - GetScreenPosition
 
 f2d1 - SoundEngine
