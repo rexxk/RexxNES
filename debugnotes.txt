@@ -68,6 +68,7 @@ NES
 8fed - .ClrTimersLoop
 8ffe - .StartPage
 9012 - .SetInitNTHigh
+9054 - .DoneInitArea
 
 90cc - InitializeMemory
 

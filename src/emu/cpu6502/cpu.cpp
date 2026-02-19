@@ -353,6 +353,15 @@ namespace emu
 		return ReadAddress(address);
 	}
 
+	auto CPU::ReadZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint8_t
+	{
+		auto addressLow = ReadAddress(s_Registers.PC + 1);
+		std::uint8_t addressHigh{ 0 };
+		std::uint16_t address = (addressHigh << 8) + addressLow + s_Registers.*reg;
+
+		return ReadAddress(address);
+	}
+
 	auto CPU::WriteAbsoluteAddress(const std::uint8_t value) -> void
 	{
 		auto memoryLow = ReadAddress(s_Registers.PC + 1);
@@ -396,6 +405,15 @@ namespace emu
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
 		PrintCommandArg(address);
+
+		WriteAddress(address, value);
+	}
+
+	auto CPU::WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void
+	{
+		auto addressLow = ReadAddress(s_Registers.PC + 1);
+		std::uint8_t addressHigh{ 0 };
+		std::uint16_t address = (addressHigh << 8) + addressLow + s_Registers.*reg;
 
 		WriteAddress(address, value);
 	}
@@ -751,6 +769,18 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
+	static auto LdZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg, std::string_view regString) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddressRegister(offsetReg);
+
+		s_Registers.*reg = value;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 2, 4 };
+	}
+
 	static auto LogicalShiftRight(CPU& cpu) -> std::optional<OpValue>
 	{
 		s_Flags[FlagCarry] = s_Registers.A & 0x01;
@@ -1059,6 +1089,12 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
+	static auto StZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offset) -> std::optional<OpValue>
+	{
+		cpu.WriteZeropageAddressRegister(offset, s_Registers.*reg);
+
+		return OpValue{ 2, 4 };
+	}
 
 	static auto StaAbsoluteReg(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
@@ -1154,6 +1190,7 @@ namespace emu
 		s_OpCodes[0x8e] = []([[maybe_unused]] CPU& cpu) { return StAbsolute(cpu, &Registers::X); };
 		s_OpCodes[0x90] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagCarry, false); };
 		s_OpCodes[0x91] = []([[maybe_unused]] CPU& cpu) { return StaIndirectIndexed(cpu); };
+		s_OpCodes[0x95] = []([[maybe_unused]] CPU& cpu) { return StZeropageReg(cpu, &Registers::A, &Registers::X); };
 		s_OpCodes[0x98] = []([[maybe_unused]] CPU& cpu) { return Transfer(&Registers::Y, &Registers::A); };
 		s_OpCodes[0x99] = []([[maybe_unused]] CPU& cpu) { return StaAbsoluteReg(cpu, &Registers::Y); };
 		s_OpCodes[0x9a] = []([[maybe_unused]] CPU& cpu) { s_Registers.SP = s_Registers.X; return OpValue{ 1, 2 }; };
@@ -1171,6 +1208,9 @@ namespace emu
 		s_OpCodes[0xae] = []([[maybe_unused]] CPU& cpu) { return LdAbsolute(cpu, &Registers::X); };
 		s_OpCodes[0xb0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagCarry, true); };
 		s_OpCodes[0xb1] = []([[maybe_unused]] CPU& cpu) { return LdaIndirectIndex(cpu); };
+		s_OpCodes[0xb4] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::Y, &Registers::X, "X"); };
+		s_OpCodes[0xb5] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::A, &Registers::X, "X"); };
+		s_OpCodes[0xb6] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::X, &Registers::Y, "Y"); };
 		s_OpCodes[0xbd] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::X, "X"); };
 		s_OpCodes[0xbe] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::X, &Registers::Y, "Y"); };
 		s_OpCodes[0xb9] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::Y, "Y"); };
@@ -1313,8 +1353,8 @@ namespace emu
 
 //				if (opCode == 0x60)
 //				if (s_Registers.PC == 0x8e04)
-//				if (s_Registers.PC == 0x9012)
-//					m_PowerHandler.SetState(PowerState::Suspended);
+				if (s_Registers.PC == 0x9012)
+					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && opCode == 0x60)
 				{
 					m_PowerHandler.SetState(PowerState::Suspended);

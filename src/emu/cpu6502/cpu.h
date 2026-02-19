@@ -59,10 +59,12 @@ namespace emu
 		auto ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg, std::string_view regString) -> std::uint8_t;
 		auto ReadIndirectIndexed() -> std::uint8_t;
 		auto ReadZeropageAddress() -> std::uint8_t;
+		auto ReadZeropageAddressRegister(std::uint8_t Registers::* reg) -> std::uint8_t;
 		auto WriteAbsoluteAddress(const std::uint8_t value) -> void;
 		auto WriteAbsoluteAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value, std::string_view regString) -> void;
 		auto WriteIndirectIndexed(std::uint8_t value) -> void;
 		auto WriteZeropageAddress(const std::uint8_t value) -> void;
+		auto WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void;
 
 		//		auto AbsoluteAddress() -> uint16_t;
 

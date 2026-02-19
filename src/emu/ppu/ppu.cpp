@@ -151,6 +151,13 @@ namespace emu
 //				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
+			// Set Sprite0 hit flag
+			{
+				auto value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				value |= 0x40;
+				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
+			}
+
 			// Do all frame processing
 			{
 //				auto oamAddress = m_MMIO[IO_OAMADDR];
@@ -181,6 +188,13 @@ namespace emu
 				value |= 0x80;
 				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 //				m_MMIO[IO_PPUSTATUS] |= 0x80;
+			}
+
+			// Clear Sprite0 hit flag
+			{
+				auto value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				value &= 0xBF;
+				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
 //			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
