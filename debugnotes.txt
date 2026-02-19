@@ -15,6 +15,7 @@ NES
 073c - ScreenRoutineTask
 
 0774 - DisableScreenFlag
+077f - IntervalTimerControl
 07a7 - PseudoRandomBitRegister
 0780 - Timers
 07ff - Warmboot validation
@@ -62,6 +63,15 @@ NES
 90cc - InitializeMemory
 
 
-dc82 - unknown jump
+dc82 - unknown jump		PlayerBGCollision -> SetFallS
+
+		BNE 04
+		LDA	#$02	
+		STA  $1D	Player_State
+		LDA	 $B5	Player_Y_HighPos / SprObject_Y_HighPos
+		CMP	#01
+		BNE 0b
+		LDA #$FF
+
 
 f2d1 - SoundEngine

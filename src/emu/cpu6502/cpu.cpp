@@ -336,6 +336,8 @@ namespace emu
 
 		address += s_Registers.Y;
 
+		std::println(" ZeroPage address read: {:04x}", address);
+
 		return ReadAddress(address);
 	}
 
@@ -1026,9 +1028,6 @@ namespace emu
 				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);
 
-//				if (opCode == 0x60)
-//					m_PowerHandler.SetState(PowerState::Suspended);
-
 				if (!maybeExecuted)
 					break;
 
@@ -1040,6 +1039,10 @@ namespace emu
 				}
 
 				s_Registers.PC += maybeExecuted->Size;
+
+//				if (opCode == 0x60)
+				if (s_Registers.PC == 0x8e04)
+					m_PowerHandler.SetState(PowerState::Suspended);
 
 				cycles += maybeExecuted->ClockCycles + s_DMACycles;
 				frameCycles += maybeExecuted->ClockCycles + s_DMACycles;
