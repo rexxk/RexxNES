@@ -41,6 +41,7 @@ namespace emu
 	static std::atomic<bool> s_NMI{ false };
 	static std::atomic<bool> s_NMIRunning{ false };
 	static std::atomic<bool> s_IRQ{ false };
+	static std::atomic<bool> s_StepToRTS{ false };
 
 	static std::uint8_t s_DMACycles{ 0 };
 
@@ -203,17 +204,21 @@ namespace emu
 
 	static auto JmpIndirect(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
-		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
+		// JMP Zeropage?
+		auto addressZeroPage = cpu.ReadAddress(s_Registers.PC + 1);
+//		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
+//		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
+//		std::uint16_t address = (addressHigh << 8) + addressLow;
 
-#if PRINT_COMMANDS
-		std::println("   $({:04x})", address);
-#endif
+//#if PRINT_COMMANDS
+//		std::println("   JMP $({:04x})", addressZeroPage);
+//#endif
 
-		auto jumpAddressLow = cpu.ReadAddress(address);
-		auto jumpAddressHigh = cpu.ReadAddress(address + 1);
+		auto jumpAddressLow = cpu.ReadAddress(addressZeroPage);
+		auto jumpAddressHigh = cpu.ReadAddress(addressZeroPage + 1);
 		std::uint16_t jumpAddress = (jumpAddressHigh << 8) + jumpAddressLow;
+
+//		std::println("   JMP $({:04x})", jumpAddress);
 
 		s_Registers.PC = jumpAddress;
 
@@ -223,10 +228,10 @@ namespace emu
 
 	static auto JsrAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 3) & 0xFF00) >> 8));
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 3) & 0xFF));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
 
-//		std::println("JMP from 0x{:04x}", s_Registers.PC + 3);
+//		std::println("Jsr abs push {:04x}", s_Registers.PC);
 
 		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
 		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
@@ -246,12 +251,10 @@ namespace emu
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
 //		std::println("RTS to 0x{:04x}", address);
-		s_Registers.PC = address;
+		s_Registers.PC = address + 1;
 
 		return OpValue{ 0, 6 };
 	}
-
-
 
 	auto CPU::ReadAddress(std::uint16_t address) -> std::uint8_t
 	{
@@ -336,7 +339,7 @@ namespace emu
 
 		address += s_Registers.Y;
 
-		std::println(" ZeroPage address read: {:04x}", address);
+//		std::println(" ZeroPage address read: {:04x}", address);
 
 		return ReadAddress(address);
 	}
@@ -1041,8 +1044,14 @@ namespace emu
 				s_Registers.PC += maybeExecuted->Size;
 
 //				if (opCode == 0x60)
-				if (s_Registers.PC == 0x8e04)
+//				if (s_Registers.PC == 0x8e04)
+				if (s_Registers.PC == 0x9c13)
 					m_PowerHandler.SetState(PowerState::Suspended);
+				if (s_StepToRTS.load() && opCode == 0x60)
+				{
+					m_PowerHandler.SetState(PowerState::Suspended);
+					s_StepToRTS.store(false);
+				}
 
 				cycles += maybeExecuted->ClockCycles + s_DMACycles;
 				frameCycles += maybeExecuted->ClockCycles + s_DMACycles;
@@ -1092,6 +1101,11 @@ namespace emu
 			return;
 
 		s_NMI.store(true);
+	}
+
+	auto CPU::StepToRTS() -> void
+	{
+		s_StepToRTS.store(true);
 	}
 
 }

@@ -262,6 +262,16 @@ auto main() -> int
 
 			ImGui::Separator();
 
+			if (ImGui::Button("Step to RTS"))
+			{
+				cpu.StepToRTS();
+
+				powerHandler.SetState(emu::PowerState::Run);
+				cpu.UpdatePowerState();
+				ppu.UpdatePowerState();
+			}
+
+			ImGui::SameLine();
 			if (ImGui::Button("Trigger NMI")) cpu.TriggerNMI();
 
 			ImGui::End();

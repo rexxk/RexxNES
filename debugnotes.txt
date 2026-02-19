@@ -43,6 +43,8 @@ NES
 8220 - MoveAllSpritesOffScreen
 8227 - .SprInitLoop
 
+8231 - TitleScreenMode
+
 8e04 - JumpEngine
 
 8e19 - InitializeNameTables
@@ -60,18 +62,12 @@ NES
 8fa1 - .GetScoreDiff
 8faf - .CopyScore
 
+8fcf - InitializeGame
+
 90cc - InitializeMemory
 
+9c03 - LoadAreaPointer
 
-dc82 - unknown jump		PlayerBGCollision -> SetFallS
-
-		BNE 04
-		LDA	#$02	
-		STA  $1D	Player_State
-		LDA	 $B5	Player_Y_HighPos / SprObject_Y_HighPos
-		CMP	#01
-		BNE 0b
-		LDA #$FF
-
+9c13 - FindAreaPointer
 
 f2d1 - SoundEngine

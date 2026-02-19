@@ -39,6 +39,7 @@ namespace emu
 		auto Stop() -> void;
 
 		static auto TriggerNMI() -> void;
+		auto StepToRTS() -> void;
 
 		auto UpdatePowerState() -> void;
 
