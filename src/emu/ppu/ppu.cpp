@@ -289,7 +289,7 @@ namespace emu
 		}
 
 		// Draw background
-//		if (ppuMask & 0x40)
+		if (ppuMask & 0x08)
 		{
 			for (std::uint32_t y = 0u; y < 240u; y++)
 			{
@@ -311,6 +311,9 @@ namespace emu
 					// TODO: Remove, used for hardcoded debug tests
 	//				patternBaseAddress = 0;
 
+					if (nametableValue != 0x24)
+						tileData.at(0) = 0;
+
 					for (auto& tileByte : tileData)
 						tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
 
@@ -323,16 +326,23 @@ namespace emu
 
 						std::uint8_t pixelValue{ 0u };
 
-						byte1 & 1 << (7 - col) ? pixelValue += 1 : pixelValue;
-						byte2 & 1 << (7 - col) ? pixelValue += 2 : pixelValue;
+//						pixelValue = byte1 & 1 << (7 - col) ? pixelValue += 1 : pixelValue;
+//						pixelValue = byte2 & 1 << (7 - col) ? pixelValue += 2 : pixelValue;
+						if (byte1 & 1 << (7 - col)) pixelValue += 1;
+						if (byte2 & 1 << (7 - col)) pixelValue += 2;
 
+						if (pixelValue != 0)
+							pixelValue &= 0xFF;
 						// Get palette data from pixelValue (0-3)
 						std::uint8_t spriteSelect = 0;
-						std::uint8_t paletteIndex = spriteSelect << 4 + (attributeValue & 0x3) << 2 + pixelValue & 0x3;
+						std::uint8_t paletteIndex = spriteSelect << 4 + (attributeValue & 0x3) << 2 + pixelValue; // &0x3;
 
 						//					std::uint8_t colorValue = m_PPUMemory.Read(0x3F00 + paletteIndex);
 
-						auto color = PaletteColors.at(Palette4.at(paletteIndex));
+//						auto colorValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + paletteIndex);
+						auto colorValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + pixelValue);
+						auto color = PaletteColors.at(colorValue);
+//						auto color = PaletteColors.at(Palette4.at(paletteIndex));
 
 						if (color)
 						{

@@ -307,6 +307,14 @@ namespace emu
 		return address;
 	}
 
+	auto CPU::FetchZeropageAddressRegister(std::uint8_t Registers::*reg, std::string_view regString) -> std::uint16_t
+	{
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		std::uint16_t address = (0x00 << 8) + memoryLow + s_Registers.*reg;
+
+		return address;
+	}
+
 	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
 	{
 		auto memoryLow = ReadAddress(s_Registers.PC + 1);
@@ -482,6 +490,36 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
+	static auto AddWithCarryZeropageReg(CPU& cpu, std::uint8_t Registers::*reg) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddressRegister(reg);
+
+		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
+		s_Registers.A = static_cast<std::uint8_t>(result);
+
+		s_Flags[FlagCarry] = result & 0x100;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagOverflow] = s_Registers.A & 0b0100'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 4 };
+	}
+
+	static auto AndAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAbsoluteAddress();
+
+		s_Registers.A = s_Registers.A & value;
+
+		// TODO: Add boundary check
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 3, 4 };
+	}
+
 	static auto AndAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
@@ -513,14 +551,46 @@ namespace emu
 		return OpValue{ 2, 2 };
 	}
 
+	static auto AndZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddress();
+
+		PrintCommandArg(value);
+
+		s_Registers.A = s_Registers.A & value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
+		return OpValue{ 2, 3 };
+	}
+
 	static auto AslAccumulator(CPU& cpu) -> std::optional<OpValue>
 	{
 		s_Flags[FlagCarry] = s_Registers.A & 0x80;
 		s_Registers.A <<= 1;
 
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+
 		return OpValue{ 1, 2 };
 	}
 
+	static auto AslAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchAddress();
+		auto value = cpu.ReadAbsoluteAddress();
+
+		s_Flags[FlagCarry] = value & 0x80;
+		value <<= 1;
+
+		cpu.WriteAddress(address, value);
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return OpValue{ 3, 6 };
+	}
 
 	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
@@ -579,6 +649,18 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
+	static auto CmpZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offset, std::string_view regString) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddressRegister(offset);
+
+		std::uint8_t result = s_Registers.*reg - value;
+		s_Flags[FlagNegative] = result & 0b1000'0000;
+		s_Flags[FlagZero] = result == 0;
+		s_Flags[FlagCarry] = result >= 0;
+
+		return OpValue{ 2, 4 };
+	}
+
 	static auto Dec(std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = s_Registers.*reg - 1;
@@ -632,6 +714,21 @@ namespace emu
 		cpu.WriteAddress(address, value);
 
 		return OpValue{ 2, 5 };
+	}
+
+	static auto DecZeropageReg(CPU& cpu, std::uint8_t Registers::*reg, std::string_view regString) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchZeropageAddressRegister(reg, regString);
+		auto value = cpu.ReadZeropageAddressRegister(reg);
+
+		value -= 1;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		cpu.WriteAddress(address, value);
+
+		return OpValue{ 2, 6 };
 	}
 
 	static auto EorImmediate(CPU& cpu) -> std::optional<OpValue>
@@ -1045,6 +1142,20 @@ namespace emu
 		return OpValue{ 3, 7 };
 	}
 
+	static auto SbcAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadAbsoluteAddress();
+
+		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
+
+		s_Flags[FlagZero] = result == 0;
+		s_Flags[FlagNegative] = result & 0x80;
+		s_Flags[FlagCarry] = result >= 0;
+		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+
+		return OpValue{ 3, 4 };
+	}
+
 	static auto SbcAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
 	{
 		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
@@ -1073,6 +1184,34 @@ namespace emu
 		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
 
 		return OpValue{ 2, 2 };
+	}
+
+	static auto SbcZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddress();
+
+		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
+
+		s_Flags[FlagZero] = result == 0;
+		s_Flags[FlagNegative] = result & 0x80;
+		s_Flags[FlagCarry] = result >= 0;
+		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+
+		return OpValue{ 2, 3 };
+	}
+
+	static auto SbcZeropageOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	{
+		auto value = cpu.ReadZeropageAddressRegister(reg);
+
+		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
+
+		s_Flags[FlagZero] = result == 0;
+		s_Flags[FlagNegative] = result & 0x80;
+		s_Flags[FlagCarry] = result >= 0;
+		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+
+		return OpValue{ 2, 4 };
 	}
 
 	static auto StAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
@@ -1146,20 +1285,24 @@ namespace emu
 		s_OpCodes[0x09] = []([[maybe_unused]] CPU& cpu) { return OrImmediate(cpu); };
 		s_OpCodes[0x0a] = []([[maybe_unused]] CPU& cpu) { return AslAccumulator(cpu); };
 		s_OpCodes[0x0d] = []([[maybe_unused]] CPU& cpu) { return OrAbsolute(cpu); };
+		s_OpCodes[0x0e] = []([[maybe_unused]] CPU& cpu) { return AslAbsolute(cpu); };
 		s_OpCodes[0x10] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagNegative, false); };
 		s_OpCodes[0x11] = []([[maybe_unused]] CPU& cpu) { return OrIndirectIndexed(cpu, &Registers::A); };
 		s_OpCodes[0x18] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = false; return OpValue{ 1, 2 }; };
 		s_OpCodes[0x19] = []([[maybe_unused]] CPU& cpu) { return OrAbsoluteRegister(cpu, &Registers::Y, "Y"); };
 		s_OpCodes[0x20] = []([[maybe_unused]] CPU& cpu) { return JsrAbsolute(cpu); };
 		s_OpCodes[0x24] = []([[maybe_unused]] CPU& cpu) { return BitZeropage(cpu); };
+		s_OpCodes[0x25] = []([[maybe_unused]] CPU& cpu) { return AndZeropage(cpu); };
 		s_OpCodes[0x26] = []([[maybe_unused]] CPU& cpu) { return RotateLeftZeropage(cpu); };
 		s_OpCodes[0x28] = []([[maybe_unused]] CPU& cpu) { return PullSRFromStack(cpu); };
 		s_OpCodes[0x29] = []([[maybe_unused]] CPU& cpu) { return AndImmediate(cpu); };
 		s_OpCodes[0x2a] = []([[maybe_unused]] CPU& cpu) { return RotateLeft(cpu); };
 		s_OpCodes[0x2c] = []([[maybe_unused]] CPU& cpu) { return BitAbsolute(cpu); };
+		s_OpCodes[0x2d] = []([[maybe_unused]] CPU& cpu) { return AndAbsolute(cpu); };
 		s_OpCodes[0x2e] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAbsolute(cpu); };
 		s_OpCodes[0x30] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagNegative, true); };
 		s_OpCodes[0x38] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = true; return OpValue{ 1, 2 }; };
+		s_OpCodes[0x39] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::Y, "Y"); };
 		s_OpCodes[0x3d] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::X, "X"); };
 		s_OpCodes[0x3e] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAbsoluteX(cpu); };
 		s_OpCodes[0x40] = []([[maybe_unused]] CPU& cpu) { return ReturnFromInterrupt(cpu); };
@@ -1177,8 +1320,10 @@ namespace emu
 		s_OpCodes[0x6a] = []([[maybe_unused]] CPU& cpu) { return RotateRight(cpu); };
 		s_OpCodes[0x6c] = []([[maybe_unused]] CPU& cpu) { return JmpIndirect(cpu); };
 		s_OpCodes[0x6d] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsolute(cpu); };
+		s_OpCodes[0x75] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryZeropageReg(cpu, &Registers::X); };
 		s_OpCodes[0x78] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagInterrupt] = true;  return OpValue{ 1, 2 }; };
 		s_OpCodes[0x79] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsoluteIndexed(cpu, &Registers::Y, "Y"); };
+		s_OpCodes[0x7d] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsoluteIndexed(cpu, &Registers::X, "X"); };
 		s_OpCodes[0x7e] = []([[maybe_unused]] CPU& cpu) { return RotateRightAbsoluteX(cpu); };
 		s_OpCodes[0x84] = []([[maybe_unused]] CPU& cpu) { return StZeropage(cpu, &Registers::Y); };
 		s_OpCodes[0x85] = []([[maybe_unused]] CPU& cpu) { return StZeropage(cpu, &Registers::A); };
@@ -1225,15 +1370,20 @@ namespace emu
 		s_OpCodes[0xcd] = []([[maybe_unused]] CPU& cpu) { return CmpAbsolute(cpu, &Registers::A); };
 		s_OpCodes[0xce] = []([[maybe_unused]] CPU& cpu) { return DecAbsolute(cpu); };
 		s_OpCodes[0xd0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagZero, false); };
+		s_OpCodes[0xd5] = []([[maybe_unused]] CPU& cpu) { return CmpZeropageReg(cpu, &Registers::A, &Registers::X, "X"); };
+		s_OpCodes[0xd6] = []([[maybe_unused]] CPU& cpu) { return DecZeropageReg(cpu, &Registers::X, "X"); };
 		s_OpCodes[0xd8] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagDecimal] = false; return OpValue{ 1, 2 }; };
 		s_OpCodes[0xd9] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::Y, "Y"); };
 		s_OpCodes[0xde] = []([[maybe_unused]] CPU& cpu) { return DecAbsoluteRegister(cpu, &Registers::X, "X"); };
 		s_OpCodes[0xe0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::X); };
+		s_OpCodes[0xe5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropage(cpu); };
 		s_OpCodes[0xe6] = []([[maybe_unused]] CPU& cpu) { return IncZeropage(cpu); };
 		s_OpCodes[0xe8] = []([[maybe_unused]] CPU& cpu) { return Inc(&Registers::X); };
 		s_OpCodes[0xe9] = []([[maybe_unused]] CPU& cpu) { return SbcImmediate(cpu); };
+		s_OpCodes[0xed] = []([[maybe_unused]] CPU& cpu) { return SbcAbsolute(cpu); };
 		s_OpCodes[0xee] = []([[maybe_unused]] CPU& cpu) { return IncAbsolute(cpu); };
 		s_OpCodes[0xf0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagZero, true); };
+		s_OpCodes[0xf5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropageOffset(cpu, &Registers::X, "X"); };
 		s_OpCodes[0xf9] = []([[maybe_unused]] CPU& cpu) { return SbcAbsoluteOffset(cpu, &Registers::Y, "Y"); };
 	}
 
@@ -1353,8 +1503,8 @@ namespace emu
 
 //				if (opCode == 0x60)
 //				if (s_Registers.PC == 0x8e04)
-				if (s_Registers.PC == 0x9012)
-					m_PowerHandler.SetState(PowerState::Suspended);
+//				if (s_Registers.PC == 0x9012)
+//					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && opCode == 0x60)
 				{
 					m_PowerHandler.SetState(PowerState::Suspended);
