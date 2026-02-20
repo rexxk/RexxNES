@@ -86,10 +86,11 @@ namespace emu
 				{
 					auto value = m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
 
-					// Reset Vblank on PPU_STATUS read
+					// Reset Vblank and w-flag on PPU_STATUS read
 					if (address == 0x2002)
 					{
 						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value & 0x7F);
+						RegisterW = false;
 					}
 
 					if (address == 0x4016)
