@@ -8,14 +8,14 @@ namespace emu
 
 	enum class Button
 	{
-		Right = 0,
-		Left,
-		Down,
-		Up,
-		Start,
-		Select,
+		A = 0,
 		B,
-		A,
+		Select,
+		Start,
+		Up,
+		Down,
+		Left,
+		Right,
 	};
 
 	class Controller

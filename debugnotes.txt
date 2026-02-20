@@ -5,6 +5,11 @@ NES
 
 0300 - VRAM_buffer1_offset
 0301 - VRAM_buffer1
+0340 - VRAM_buffer2_offset
+0341 - VRAM_buffer2
+
+VRAM_AddrTable_Low
+VRAM_AddrTable_High
 
 06fc - SavedJoypadBits
 074a - JoypadBitMask
@@ -23,7 +28,7 @@ NES
 07ff - Warmboot validation
 
 
-808x - NonMaskableInterrupt
+8085 - NonMaskableInterrupt
 80a1 - .ScreenOff
 80d0 - .InitBuffer
 80e7 -> ReadJoypads
@@ -54,6 +59,9 @@ NES
 8e3e - .InitNTLoop
 
 8e5c - ReadJoypads
+
+WriteBufferToScreen
+8ebb - .OutputToVRAM - FAILS
 
 8edd - UpdateScreen
 8ee6 - InitScroll

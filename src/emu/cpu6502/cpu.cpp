@@ -1474,7 +1474,7 @@ namespace emu
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
 
-//					m_PowerHandler.SetState(PowerState::SingleStep);
+					m_PowerHandler.SetState(PowerState::SingleStep);
 
 					JmpAbsolute(*this);
 				}
@@ -1504,6 +1504,8 @@ namespace emu
 //				if (opCode == 0x60)
 //				if (s_Registers.PC == 0x8e04)
 //				if (s_Registers.PC == 0x9012)
+//				if (s_Registers.PC == 0x8ebb)
+//				if (s_Registers.PC == 0x8ebb)
 //					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && opCode == 0x60)
 				{
