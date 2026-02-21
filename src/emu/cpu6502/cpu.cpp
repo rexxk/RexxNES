@@ -804,7 +804,7 @@ namespace emu
 	{
 		bool carryFlag = (value & 0x80);
 		value <<= 1;
-		value += carryFlag;
+		value += s_Flags[FlagCarry];
 
 		s_Flags[FlagCarry] = carryFlag;
 		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
@@ -859,7 +859,7 @@ namespace emu
 	auto RotateRight(std::uint8_t value) -> std::uint8_t
 	{
 		bool carryFlag = value & 0x01;
-		value = value >> 1 + carryFlag << 7;
+		value = value >> 1 + s_Flags[FlagCarry] << 7;
 
 		s_Flags[FlagCarry] = carryFlag;
 		s_Flags[FlagNegative] = value & 0b1000'0000;
@@ -1210,7 +1210,7 @@ namespace emu
 //				if (s_Registers.PC == 0x8e04)
 //				if (s_Registers.PC == 0x9012)
 //				if (s_Registers.PC == 0x8ebb)
-//				if (s_Registers.PC == 0x8ebb)
+//				if (s_Registers.PC == 0x8e5c)
 //					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && opCode == 0x60)
 				{

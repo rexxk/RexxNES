@@ -218,7 +218,7 @@ namespace emu
 			case 0x2006:
 			{
 				if (!RegisterW)
-					PPUAddress = (value << 8) & 0xFF00;
+					PPUAddress = ((value & 0x3F) << 8) & 0xFF00;
 				else
 				{
 					PPUAddress += value;	
