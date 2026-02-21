@@ -129,10 +129,10 @@ namespace emu
 		return address;
 	}
 
-	auto CPU::FetchZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint16_t
+	auto CPU::FetchZeropageAddressRegister(std::uint8_t Registers::*offset) -> std::uint16_t
 	{
 		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		std::uint16_t address = (0x00 << 8) + memoryLow + s_Registers.*reg;
+		std::uint16_t address = (0x00 << 8) + memoryLow + s_Registers.*offset;
 
 		return address;
 	}
@@ -154,7 +154,6 @@ namespace emu
 
 	auto CPU::ReadIndirectIndexed() -> std::uint8_t
 	{
-
 		return ReadAddress(FetchIndirectIndexedAddress());
 	}
 
@@ -206,9 +205,9 @@ namespace emu
 		WriteAddress(FetchZeropageAddress(),value);
 	}
 
-	auto CPU::WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void
+	auto CPU::WriteZeropageAddressRegister(std::uint8_t Registers::* offset, const std::uint8_t value) -> void
 	{
-		WriteAddress(FetchZeropageAddressRegister(reg), value);
+		WriteAddress(FetchZeropageAddressRegister(offset), value);
 	}
 
 
@@ -379,77 +378,70 @@ namespace emu
 		return OpValue{ 1, 7 };
 	}
 
-	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	auto Compare(std::uint8_t Registers::*reg, std::uint8_t value) -> void
 	{
-		auto value = cpu.ReadAbsoluteAddress();
-
-//		PrintCommandArg(value);
-
 		std::uint8_t result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
 		s_Flags[FlagCarry] = result >= 0;
+	}
+
+	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		Compare(reg, cpu.ReadAbsoluteAddress());
 
 		return OpValue{ 3, 4 };
 	}
 
-	static auto CmpAbsoluteIndexed(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	static auto CmpAbsoluteIndexed(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offset) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(reg);
-
-		std::uint8_t result = s_Registers.*reg - value;
-		s_Flags[FlagNegative] = result & 0b1000'0000;
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagCarry] = result >= 0;
+		Compare(reg, cpu.ReadAbsoluteAddressRegister(offset));
 
 		return OpValue{ 3, 4 };
 	}
 
 	static auto CmpImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		std::uint8_t result = s_Registers.*reg - value;
-
-//		s_Flags[FlagNegative] = static_cast<std::int8_t>(result) & 0b1000'0000;
-		s_Flags[FlagNegative] = result & 0b1000'0000;
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagCarry] = result >= 0;
-
+		Compare(reg, cpu.ReadAddress(s_Registers.PC + 1));
 
 		return OpValue{ 2, 2 };
 	}
 
 	static auto CmpZeropage(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadZeropageAddress();
-
-		std::uint8_t result = s_Registers.*reg - value;
-		s_Flags[FlagNegative] = result & 0b1000'0000;
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagCarry] = result >= 0;
+		Compare(reg, cpu.ReadZeropageAddress());
 
 		return OpValue{ 2, 3 };
 	}
 
 	static auto CmpZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offset) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadZeropageAddressRegister(offset);
-
-		std::uint8_t result = s_Registers.*reg - value;
-		s_Flags[FlagNegative] = result & 0b1000'0000;
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagCarry] = result >= 0;
+		Compare(reg, cpu.ReadZeropageAddressRegister(offset));
 
 		return OpValue{ 2, 4 };
 	}
 
-	static auto Dec(std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	auto DecreaseRegister(std::uint8_t Registers::* reg) -> void
 	{
 		s_Registers.*reg = s_Registers.*reg - 1;
 
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
+	}
+
+	auto DecreaseValue(std::uint8_t value) -> std::uint8_t
+	{
+		value = value - 1;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return value;
+	}
+
+	static auto Dec(std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		DecreaseRegister(reg);
 
 		return OpValue{ 1, 2 };
 	}
@@ -459,12 +451,9 @@ namespace emu
 		auto address = cpu.FetchAbsoluteAddress();
 		auto value = cpu.ReadAddress(address);
 
-		value--;
+		value = DecreaseValue(value);
 
 		cpu.WriteAddress(address, value);
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 3, 6 };
 	}
@@ -474,12 +463,9 @@ namespace emu
 		auto address = cpu.FetchAbsluteAddressRegister(reg);
 		auto value = cpu.ReadAbsoluteAddressRegister(reg);
 
-		value--;
+		value = DecreaseValue(value);
 
 		cpu.WriteAddress(address, value);
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 3, 7 };
 	}
@@ -489,10 +475,7 @@ namespace emu
 		auto address = cpu.FetchZeropageAddress();
 		auto value = cpu.ReadZeropageAddress();
 
-		value -= 1;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		value = DecreaseValue(value);
 
 		cpu.WriteAddress(address, value);
 
@@ -504,63 +487,68 @@ namespace emu
 		auto address = cpu.FetchZeropageAddressRegister(reg);
 		auto value = cpu.ReadZeropageAddressRegister(reg);
 
-		value -= 1;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		value = DecreaseValue(value);
 
 		cpu.WriteAddress(address, value);
 
 		return OpValue{ 2, 6 };
 	}
 
-	static auto EorImmediate(CPU& cpu) -> std::optional<OpValue>
+	auto ExclusiveOr(std::uint8_t value) -> void
 	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
 		s_Registers.A = s_Registers.A ^ value;
 
 		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.A == 0;
+	}
+
+	static auto EorImmediate(CPU& cpu) -> std::optional<OpValue>
+	{
+		ExclusiveOr(cpu.ReadAddress(s_Registers.PC + 1));
 
 		return OpValue{ 2, 2 };
 	}
 
 	static auto EorZeropage(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto address = cpu.FetchZeropageAddress();
-		auto value = cpu.ReadZeropageAddress();
-
-		s_Registers.A = s_Registers.A ^ value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		ExclusiveOr(cpu.ReadZeropageAddress());
 
 		return OpValue{ 2, 3 };
 	}
 
-	static auto Inc(std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	auto IncreaseRegister(std::uint8_t Registers::* reg) -> void
 	{
 		s_Registers.*reg = s_Registers.*reg + 1;
 
 		s_Flags[FlagNegative] = s_Registers.*reg & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.*reg == 0;
+	}
+
+	auto IncreaseValue(std::uint8_t value) -> std::uint8_t
+	{
+		value = value + 1;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+
+		return value;
+	}
+
+	static auto Inc(std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		IncreaseRegister(reg);
 
 		return OpValue{ 1, 2 };
 	}
 
 	static auto IncAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
-		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-
+		std::uint16_t address = cpu.FetchAbsoluteAddress();
 		auto value = cpu.ReadAddress(address);
-		value++;
-		cpu.WriteAddress(address, value);
 
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		value = IncreaseValue(value);
+
+		cpu.WriteAddress(address, value);
 
 		return OpValue{ 3, 6 };
 	}
@@ -569,12 +557,10 @@ namespace emu
 	{
 		auto address = cpu.FetchZeropageAddress();
 		auto value = cpu.ReadZeropageAddress();
-		value++;
+
+		value = IncreaseValue(value);
 
 		cpu.WriteAddress(address, value);
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 2, 5 };
 	}
@@ -609,8 +595,6 @@ namespace emu
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
 		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
 
-		//		std::println("Jsr abs push {:04x}", s_Registers.PC);
-
 		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
 		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
@@ -620,25 +604,24 @@ namespace emu
 		return OpValue{ 0, 3 };
 	}
 
-	static auto LdAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	auto LoadRegister(std::uint8_t Registers::* reg, std::uint8_t value) -> void
 	{
-		auto value = cpu.ReadAbsoluteAddress();
 		s_Registers.*reg = value;
 
 		s_Flags[FlagNegative] = value & 0b1000'0000;
 		s_Flags[FlagZero] = value == 0;
+	}
+
+	static auto LdAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		LoadRegister(reg, cpu.ReadAbsoluteAddress());
 
 		return OpValue{ 3, 4 };
 	}
 
 	static auto LdAbsoluteReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(offsetReg);
-
-		s_Registers.*reg = value;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		LoadRegister(reg, cpu.ReadAbsoluteAddressRegister(offsetReg));
 
 		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*offsetReg) & 0xFF00) != (s_Registers.PC & 0xFF00));
 
@@ -647,63 +630,49 @@ namespace emu
 
 	static auto LdImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		s_Registers.*reg = value;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		LoadRegister(reg, cpu.ReadAddress(s_Registers.PC + 1));
 
 		return OpValue{ 2, 2 };
 	}
 
 	static auto LdaIndirectIndex(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadIndirectIndexed();
+		LoadRegister(&Registers::A, cpu.ReadIndirectIndexed());
 
 		bool boundaryCrossed = (((s_Registers.PC + s_Registers.A) & 0xFF00) != (s_Registers.PC & 0xFF00));
-
-		s_Registers.A = value;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
 
 		return OpValue{ 2, static_cast<std::uint8_t>(5 + (boundaryCrossed == true) ? 1 : 0) };
 	}
 
 	static auto LdZeropage(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto address = cpu.FetchZeropageAddress();
-		auto value = cpu.ReadZeropageAddress();
-
-		s_Registers.*reg = value;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		LoadRegister(reg, cpu.ReadZeropageAddress());
 
 		return OpValue{ 2, 3 };
 	}
 
 	static auto LdZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadZeropageAddressRegister(offsetReg);
-
-		s_Registers.*reg = value;
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		LoadRegister(reg, cpu.ReadZeropageAddressRegister(offsetReg));
 
 		return OpValue{ 2, 4 };
 	}
 
-	static auto LogicalShiftRight(CPU& cpu) -> std::optional<OpValue>
+	auto LogicalShiftRight(std::uint8_t value) -> std::uint8_t
 	{
-		s_Flags[FlagCarry] = s_Registers.A & 0x01;
+		s_Flags[FlagCarry] = value & 0x01;
 
-		s_Registers.A = s_Registers.A >> 1;
+		value = value >> 1;
 
 		s_Flags[FlagNegative] = false;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		s_Flags[FlagZero] = value == 0;
+
+		return value;
+	}
+
+	static auto LogicalShiftRightAccumulator(CPU& cpu) -> std::optional<OpValue>
+	{
+		s_Registers.A = LogicalShiftRight(s_Registers.A);
 
 		return OpValue{ 1, 2 };
 	}
@@ -713,12 +682,7 @@ namespace emu
 		auto address = cpu.FetchAbsoluteAddress();
 		auto value = cpu.ReadAbsoluteAddress();
 
-		s_Flags[FlagCarry] = value & 0x01;
-
-		value = value >> 1;
-
-		s_Flags[FlagNegative] = false;
-		s_Flags[FlagZero] = value == 0;
+		value = LogicalShiftRight(value);
 
 		cpu.WriteAddress(address, value);
 
@@ -730,39 +694,31 @@ namespace emu
 		auto address = cpu.FetchZeropageAddress();
 		auto value = cpu.ReadZeropageAddress();
 
-		s_Flags[FlagCarry] = value & 0x01;
-
-		value = value >> 1;
-
-		s_Flags[FlagNegative] = false;
-		s_Flags[FlagZero] = value == 0;
+		value = LogicalShiftRight(value);
 
 		cpu.WriteAddress(address, value);
 
 		return OpValue{ 2, 5 };
 	}
 
-	static auto OrAbsolute(CPU& cpu) -> std::optional<OpValue>
+	auto Or(std::uint8_t value) -> void
 	{
-		auto value = cpu.ReadAbsoluteAddress();
-
 		s_Registers.A = s_Registers.A | value;
 
 		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
 		s_Flags[FlagZero] = s_Registers.A == 0;
+	}
 
-		// TODO: Page boundary check and cycle correction
+	static auto OrAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		Or(cpu.ReadAbsoluteAddress());
+
 		return OpValue{ 3, 4 };
 	}
 
 	static auto OrAbsoluteRegister(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(reg);
-	
-		s_Registers.A = s_Registers.A | value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		Or(cpu.ReadAbsoluteAddressRegister(reg));
 
 		// TODO: Page boundary check and cycle correction
 		return OpValue{ 3, 4 };
@@ -770,36 +726,21 @@ namespace emu
 
 	static auto OrImmediate(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		s_Registers.A = s_Registers.A | value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		Or(cpu.ReadAddress(s_Registers.PC + 1));
 
 		return OpValue{ 2, 2 };
 	}
 
 	static auto OrIndirectIndexed(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadIndirectIndexed();
-
-		s_Registers.A = s_Registers.A | value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		Or(cpu.ReadIndirectIndexed());
 
 		return OpValue{ 2, 6 };
 	}
 
 	static auto OrZeropage(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadZeropageAddress();
-
-		s_Registers.A = s_Registers.A | value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		Or(cpu.ReadZeropageAddress());
 
 		return OpValue{ 2, 3 };
 	}
@@ -841,8 +782,6 @@ namespace emu
 		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
 
-//		std::println(" RTI ${:04x}", address);
-
 		s_Registers.PC = address;
 
 		s_NMIRunning.store(false);
@@ -861,15 +800,22 @@ namespace emu
 		return OpValue{ 0, 6 };
 	}
 
-	static auto RotateLeft(CPU& cpu) -> std::optional<OpValue>
+	auto RotateLeft(std::uint8_t value) -> std::uint8_t
 	{
-		bool carryFlag = (s_Registers.A & 0x80);
-		s_Registers.A <<= 1;
-		s_Registers.A += s_Flags[FlagCarry];
+		bool carryFlag = (value & 0x80);
+		value <<= 1;
+		value += carryFlag;
 
 		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = static_cast<std::uint8_t>(s_Registers.A) & 0b1000'0000;
-		s_Flags[FlagZero] = static_cast<std::uint8_t>(s_Registers.A) == 0;
+		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
+		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+
+		return value;
+	}
+
+	static auto RotateLeftAccumulator(CPU& cpu) -> std::optional<OpValue>
+	{
+		s_Registers.A = RotateLeft(s_Registers.A);
 
 		return OpValue{ 1, 2 };
 	}
@@ -879,13 +825,7 @@ namespace emu
 		auto address = cpu.FetchZeropageAddress();
 		auto value = cpu.ReadZeropageAddress();
 
-		bool carryFlag = (value & 0x80);
-		value <<= 1;
-		value += s_Flags[FlagCarry];
-
-		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
-		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+		value = RotateLeft(value);
 
 		cpu.WriteAddress(address, value);
 
@@ -897,13 +837,7 @@ namespace emu
 		auto address = cpu.FetchAbsoluteAddress();
 		std::uint8_t value = cpu.ReadAddress(address);
 
-		bool carryFlag = value & 0x80;
-		value <<= 1;
-		value += s_Flags[carryFlag];
-
-		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		value = RotateLeft(value);
 
 		cpu.WriteAddress(address, value);
 
@@ -913,33 +847,30 @@ namespace emu
 	static auto RotateLeftAbsoluteX(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
-
 		std::uint8_t value = cpu.ReadAddress(address);
 
-		bool carryFlag = value & 0x80;
-		value <<= 1;
-		value += s_Flags[carryFlag];
-
-		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
+		value = RotateLeft(value);
 
 		cpu.WriteAddress(address, value);
 
 		return OpValue{ 3, 7 };
 	}
 
-	static auto RotateRight(CPU& cpu) -> std::optional<OpValue>
+	auto RotateRight(std::uint8_t value) -> std::uint8_t
 	{
-		auto value = s_Registers.A;
-		bool carry = s_Flags[FlagCarry];
-		bool newCarryFlag = value & 0x01;
+		bool carryFlag = value & 0x01;
+		value = value >> 1 + carryFlag << 7;
 
-		s_Registers.A = (value >> 1) + (static_cast<std::uint8_t>(carry) & 0x01 << 7);
+		s_Flags[FlagCarry] = carryFlag;
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
 
-		s_Flags[FlagCarry] = newCarryFlag;
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
+		return value;
+	}
+
+	static auto RotateRightAccumulator(CPU& cpu) -> std::optional<OpValue>
+	{
+		s_Registers.A = RotateRight(s_Registers.A);
 
 		return OpValue{ 1, 2 };
 	}
@@ -947,90 +878,58 @@ namespace emu
 	static auto RotateRightAbsoluteX(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
-
 		auto value = cpu.ReadAddress(address);
-		bool carry = s_Flags[FlagCarry];
-		bool newCarryFlag = value & 0x01;
 
-		value = (value >> 1) + (static_cast<std::uint8_t>(carry) & 0x01 << 7);
+		value = RotateRight(value);
 
-		s_Flags[FlagCarry] = newCarryFlag;
-		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
-		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
-
-		cpu.WriteAddress(address, static_cast<std::uint8_t>(value));
+		cpu.WriteAddress(address, value);
 
 		return OpValue{ 3, 7 };
 	}
 
+	auto SubtractWithCarry(std::uint8_t value) -> void
+	{
+		s_Registers.A = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
+
+		s_Flags[FlagZero] = s_Registers.A == 0;
+		s_Flags[FlagNegative] = s_Registers.A & 0x80;
+		s_Flags[FlagCarry] = s_Registers.A >= 0;
+		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+	}
+
 	static auto SbcAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddress();
-
-		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
-
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagNegative] = result & 0x80;
-		s_Flags[FlagCarry] = result >= 0;
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+		SubtractWithCarry(cpu.ReadAbsoluteAddress());
 
 		return OpValue{ 3, 4 };
 	}
 
 	static auto SbcAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
-
-		auto value = cpu.ReadAbsoluteAddressRegister(reg);
+		SubtractWithCarry(cpu.ReadAbsoluteAddressRegister(reg));
 		
-		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
-
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagNegative] = result & 0x80;
-		s_Flags[FlagCarry] = result >= 0;
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
 
 		return OpValue{ 3, static_cast<std::uint8_t>(4 + boundaryCrossed ? 1 : 0) };
 	}
 
 	static auto SbcImmediate(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
-
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagNegative] = result & 0x80;
-		s_Flags[FlagCarry] = result >= 0;
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+		SubtractWithCarry(cpu.ReadAddress(s_Registers.PC + 1));
 
 		return OpValue{ 2, 2 };
 	}
 
 	static auto SbcZeropage(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadZeropageAddress();
-
-		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
-
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagNegative] = result & 0x80;
-		s_Flags[FlagCarry] = result >= 0;
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+		SubtractWithCarry(cpu.ReadZeropageAddress());
 
 		return OpValue{ 2, 3 };
 	}
 
 	static auto SbcZeropageOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadZeropageAddressRegister(reg);
-
-		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
-
-		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagNegative] = result & 0x80;
-		s_Flags[FlagCarry] = result >= 0;
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+		SubtractWithCarry(cpu.ReadZeropageAddressRegister(reg));
 
 		return OpValue{ 2, 4 };
 	}
@@ -1056,25 +955,11 @@ namespace emu
 		return OpValue{ 2, 4 };
 	}
 
-	static auto StaAbsoluteReg(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	static auto StaAbsoluteReg(CPU& cpu, std::uint8_t Registers::* offset) -> std::optional<OpValue>
 	{
-		cpu.WriteAbsoluteAddressRegister(reg, s_Registers.A);
+		cpu.WriteAbsoluteAddressRegister(offset, s_Registers.A);
 
 		return OpValue{ 3, 5 };
-	}
-
-	static auto StaIndirect(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
-	{
-		auto zeropageAddress = cpu.ReadAddress(s_Registers.PC + 1);
-
-		auto addressLow = cpu.ReadAddress(zeropageAddress);
-		auto addressHigh = cpu.ReadAddress(zeropageAddress + 1);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-		address += s_Registers.*reg;
-
-		cpu.WriteAddress(address, s_Registers.A);
-
-		return OpValue{ 2, 6 };
 	}
 
 	static auto StaIndirectIndexed(CPU& cpu) -> std::optional<OpValue>
@@ -1116,7 +1001,7 @@ namespace emu
 		s_OpCodes[0x26] = []([[maybe_unused]] CPU& cpu) { return RotateLeftZeropage(cpu); };
 		s_OpCodes[0x28] = []([[maybe_unused]] CPU& cpu) { return PullSRFromStack(cpu); };
 		s_OpCodes[0x29] = []([[maybe_unused]] CPU& cpu) { return AndImmediate(cpu); };
-		s_OpCodes[0x2a] = []([[maybe_unused]] CPU& cpu) { return RotateLeft(cpu); };
+		s_OpCodes[0x2a] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAccumulator(cpu); };
 		s_OpCodes[0x2c] = []([[maybe_unused]] CPU& cpu) { return BitAbsolute(cpu); };
 		s_OpCodes[0x2d] = []([[maybe_unused]] CPU& cpu) { return AndAbsolute(cpu); };
 		s_OpCodes[0x2e] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAbsolute(cpu); };
@@ -1130,14 +1015,14 @@ namespace emu
 		s_OpCodes[0x46] = []([[maybe_unused]] CPU& cpu) { return LogicalShiftRightZeropage(cpu); };
 		s_OpCodes[0x48] = []([[maybe_unused]] CPU& cpu) { return PushToStack(cpu, &Registers::A); };
 		s_OpCodes[0x49] = []([[maybe_unused]] CPU& cpu) { return EorImmediate(cpu); };
-		s_OpCodes[0x4a] = []([[maybe_unused]] CPU& cpu) { return LogicalShiftRight(cpu); };
+		s_OpCodes[0x4a] = []([[maybe_unused]] CPU& cpu) { return LogicalShiftRightAccumulator(cpu); };
 		s_OpCodes[0x4c] = []([[maybe_unused]] CPU& cpu) { return JmpAbsolute(cpu); };
 		s_OpCodes[0x4e] = []([[maybe_unused]] CPU& cpu) { return LogicalShiftRightAbsolute(cpu); };
 		s_OpCodes[0x60] = []([[maybe_unused]] CPU& cpu) { return ReturnFromSubroutine(cpu); };
 		s_OpCodes[0x65] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryZeropage(cpu); };
 		s_OpCodes[0x68] = []([[maybe_unused]] CPU& cpu) { return PullFromStack(cpu, &Registers::A); };
 		s_OpCodes[0x69] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryImmediate(cpu); };
-		s_OpCodes[0x6a] = []([[maybe_unused]] CPU& cpu) { return RotateRight(cpu); };
+		s_OpCodes[0x6a] = []([[maybe_unused]] CPU& cpu) { return RotateRightAccumulator(cpu); };
 		s_OpCodes[0x6c] = []([[maybe_unused]] CPU& cpu) { return JmpIndirect(cpu); };
 		s_OpCodes[0x6d] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsolute(cpu); };
 		s_OpCodes[0x75] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryZeropageReg(cpu, &Registers::X); };
@@ -1193,7 +1078,7 @@ namespace emu
 		s_OpCodes[0xd5] = []([[maybe_unused]] CPU& cpu) { return CmpZeropageReg(cpu, &Registers::A, &Registers::X); };
 		s_OpCodes[0xd6] = []([[maybe_unused]] CPU& cpu) { return DecZeropageReg(cpu, &Registers::X); };
 		s_OpCodes[0xd8] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagDecimal] = false; return OpValue{ 1, 2 }; };
-		s_OpCodes[0xd9] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::Y); };
+		s_OpCodes[0xd9] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::A, &Registers::Y); };
 		s_OpCodes[0xde] = []([[maybe_unused]] CPU& cpu) { return DecAbsoluteRegister(cpu, &Registers::X); };
 		s_OpCodes[0xe0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::X); };
 		s_OpCodes[0xe5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropage(cpu); };
@@ -1294,7 +1179,7 @@ namespace emu
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
 
-					m_PowerHandler.SetState(PowerState::SingleStep);
+//					m_PowerHandler.SetState(PowerState::SingleStep);
 
 					JmpAbsolute(*this);
 				}
