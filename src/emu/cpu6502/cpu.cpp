@@ -217,7 +217,7 @@ namespace emu
 
 	auto AddWithCarry(std::uint8_t value) -> void
 	{
-		bool bit7 = value & 0x80;
+		bool bit7 = value & 0x40;
 		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
 		s_Registers.A = static_cast<std::uint8_t>(result);
 
@@ -283,7 +283,6 @@ namespace emu
 
 		return OpValue{ 3, 4 };
 	}
-
 
 	static auto AndImmediate(CPU& cpu) -> std::optional<OpValue>
 	{
@@ -1179,6 +1178,7 @@ namespace emu
 					// PC = 0xFFFA - 1
 					s_Registers.PC = 0xFFF9;
 
+// Comment out this to enable stepping on NMI
 //					m_PowerHandler.SetState(PowerState::SingleStep);
 
 					JmpAbsolute(*this);
@@ -1210,9 +1210,9 @@ namespace emu
 //				if (s_Registers.PC == 0x8e04)
 //				if (s_Registers.PC == 0x9012)
 //				if (s_Registers.PC == 0x8ebb)
-//				if (s_Registers.PC == 0x8e5c)
+//				if (s_Registers.PC == 0x858b || s_Registers.PC == 0x8e44)
 //					m_PowerHandler.SetState(PowerState::Suspended);
-				if (s_StepToRTS.load() && opCode == 0x60)
+				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20))
 				{
 					m_PowerHandler.SetState(PowerState::Suspended);
 					s_StepToRTS.store(false);

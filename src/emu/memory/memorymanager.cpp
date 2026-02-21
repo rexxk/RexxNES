@@ -118,8 +118,11 @@ namespace emu
 	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck) -> void
 	{
 		// Special handling for PPUADDR and PPUDATA transfers
-		if (!skipPPUCheck && (address >= 0x2003 && address <= 0x2007))
+		if (!skipPPUCheck && (address == 0x2003 || address == 0x2005 || address == 0x2006 || address == 0x2007)) // && address <= 0x2007))
+		{
 			HandlePPUAddress(address, value);
+			return;
+		}
 
 		for (auto& chunk : m_Chunks)
 		{
@@ -144,7 +147,7 @@ namespace emu
 			}
 		}
 
-		std::println("MemoryManager::WriteMemory - Unknown memory address {:04x}", address);
+		std::println("MemoryManager::WriteMemory - Unknown memory address {:04x}  | PPUAddress: {:04x} : PPUData: {:02x}", address, PPUAddress, value);
 	}
 
 	auto MemoryManager::GetIOAddress(std::uint16_t address) -> std::uint8_t&

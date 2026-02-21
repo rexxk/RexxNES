@@ -32,7 +32,8 @@ VRAM_AddrTable_High
 80a1 - .ScreenOff
 80d0 - .InitBuffer
 80e7 -> ReadJoypads
-8104 - .DecTimers
+80ea - .PauseRoutine
+8102 - .DecTimers
 810e - .DecTimersLoop
 8116 - .SkipExpTimer
 811b - .NoDecTimers
@@ -52,6 +53,10 @@ VRAM_AddrTable_High
 
 8231 - TitleScreenMode
 
+--> 8567 - ScreenRoutines
+ 858b - ::InitScreen
+ 8220 - .MoveAllSpritesOffscreen
+ 8e19 - .InitializeNameTables
 8e04 - JumpEngine
 
 8e19 - InitializeNameTables
@@ -73,6 +78,7 @@ WriteBufferToScreen
 8faf - .CopyScore
 
 8fcf - InitializeGame
+8fe4 - .InitializeArea
 8fed - .ClrTimersLoop
 8ffe - .StartPage
 9012 - .SetInitNTHigh
@@ -85,6 +91,7 @@ WriteBufferToScreen
 9c13 - FindAreaPointer
 
 9c22 - GetAreaDataAddrs
+9ca3 - .StoreStyle
 
 b038 - GetScreenPosition
 
