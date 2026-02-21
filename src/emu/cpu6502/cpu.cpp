@@ -22,8 +22,6 @@ using namespace std::chrono_literals;
 namespace emu
 {
 
-#define PRINT_COMMANDS	0
-
 
 	constexpr std::uint8_t FlagCarry = 0;
 	constexpr std::uint8_t FlagZero = 1;
@@ -88,88 +86,250 @@ namespace emu
 		std::println("        SP: {:02x}", s_Registers.SP);
 	}
 
-	static auto PrintCommand(std::string_view cmd) -> void
+
+
+
+
+	auto CPU::FetchAbsoluteAddress() -> std::uint16_t
 	{
-#if PRINT_COMMANDS
-		std::print("@ {:04x}   {}", s_Registers.PC, cmd);
-#endif
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (memoryHigh << 8) + memoryLow;
+
+		return address;
 	}
 
-	static auto PrintCommandArg(std::uint16_t value, bool immediate = false, bool decimal = false) -> void
+	auto CPU::FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t
 	{
-#if PRINT_COMMANDS
-		if (immediate)
-			std::print("   #");
-		else
-			std::print("   ");
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
 
-		if (decimal)
-			std::println("${}", static_cast<std::int16_t>(value));
-		else
-			std::println("${:02x}", value);
-#endif
+		return address;
 	}
 
-	static auto PrintCommandArgAbsolute(std::uint16_t value, std::string_view reg) -> void
+	auto CPU::FetchIndirectIndexedAddress() -> std::uint16_t
 	{
-#if PRINT_COMMANDS
-		std::println("   ${:04x},{}", value, reg);
-#endif
+		auto zeropageAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC + 1);
+
+		auto addressLow = ReadAddress(zeropageAddress);
+		auto addressHigh = ReadAddress(zeropageAddress + 1);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		address += s_Registers.Y;
+
+		return address;
 	}
 
-	static auto PrintCommandArgIndirect(std::uint8_t value, std::string_view reg) -> void
+	auto CPU::FetchZeropageAddress() -> std::uint16_t
 	{
-#if PRINT_COMMANDS
-		std::println("   (${:02x}),{}", value, reg);
-#endif
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		std::uint16_t address = (0x00 << 8) + memoryLow;
+
+		return address;
 	}
 
-	static auto PrintSingleCommand(std::string_view cmd) -> void
+	auto CPU::FetchZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint16_t
 	{
-#if PRINT_COMMANDS
-		std::println("@ {:04x}   {}", s_Registers.PC, cmd);
-#endif
+		auto memoryLow = ReadAddress(s_Registers.PC + 1);
+		std::uint16_t address = (0x00 << 8) + memoryLow + s_Registers.*reg;
+
+		return address;
 	}
 
-	static auto Break(CPU& cpu) -> std::optional<OpValue>
+	auto CPU::ReadAddress(std::uint16_t address) -> std::uint8_t
 	{
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC) & 0xFF00) >> 8));
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC) & 0xFF));
-
-		s_Flags[FlagInterrupt] = true;
-
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
-
-		s_Flags[FlagBreak] = true;
-
-#if PRINT_COMMANDS
-		std::println("BRK");
-#endif
-
-		return OpValue{ 1, 7 };
+		return m_MemoryManager.ReadMemory(MemoryOwner::CPU, address);
 	}
 
-	static auto Branch(CPU& cpu, const std::uint8_t flag, bool condition) -> std::optional<OpValue>
+	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
 	{
-		std::int8_t relativePosition = cpu.ReadAddress(s_Registers.PC + 1);
-		PrintCommandArg(relativePosition, false, true);
+		return ReadAddress(FetchAbsoluteAddress());
+	}
 
-		s_Registers.PC += 2;
+	auto CPU::ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint8_t
+	{
+		return ReadAddress(FetchAbsluteAddressRegister(reg));
+	}
 
-		bool boundaryCrossed = ((s_Registers.PC + relativePosition) & 0xFF00) != (s_Registers.PC & 0xFF00);
+	auto CPU::ReadIndirectIndexed() -> std::uint8_t
+	{
 
-		if (s_Flags[flag] == condition)
+		return ReadAddress(FetchIndirectIndexedAddress());
+	}
+
+	auto CPU::ReadZeropageAddress() -> std::uint8_t
+	{
+		return ReadAddress(FetchZeropageAddress());
+	}
+
+	auto CPU::ReadZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint8_t
+	{
+		return ReadAddress(FetchZeropageAddressRegister(reg));
+	}
+
+	auto CPU::WriteAddress(std::uint16_t address, std::uint8_t value) -> void
+	{
+		// Check for OAM DMA write
+		if (address == 0x4014)
 		{
-			s_Registers.PC += relativePosition;
+			m_MemoryManager.DMATransfer(MemoryOwner::PPU, value);
+			s_DMACycles = 514;
 		}
 
-		return OpValue{ 0, static_cast<std::uint8_t>(2 + (boundaryCrossed ? 2 : 1)) };
+		if (address == 0x4015)
+		{
+			m_MemoryManager.DMATransfer(MemoryOwner::ASU, value);
+			s_DMACycles = 4;
+		}
+
+		return m_MemoryManager.WriteMemory(MemoryOwner::CPU, address, value);
 	}
 
-	static auto Bit(std::uint8_t value) -> void
+	auto CPU::WriteAbsoluteAddress(const std::uint8_t value) -> void
 	{
-		PrintCommandArg(value);
+		WriteAddress(FetchAbsoluteAddress(), value);
+	}
 
+	auto CPU::WriteAbsoluteAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void
+	{
+		WriteAddress(FetchAbsluteAddressRegister(reg), value);
+	}
+
+	auto CPU::WriteIndirectIndexed(std::uint8_t value) -> void
+	{
+		WriteAddress(FetchIndirectIndexedAddress(), value);
+	}
+
+	auto CPU::WriteZeropageAddress(const std::uint8_t value) -> void
+	{
+		WriteAddress(FetchZeropageAddress(),value);
+	}
+
+	auto CPU::WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void
+	{
+		WriteAddress(FetchZeropageAddressRegister(reg), value);
+	}
+
+
+
+
+
+
+	auto AddWithCarry(std::uint8_t value) -> void
+	{
+		bool bit7 = value & 0x80;
+		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
+		s_Registers.A = static_cast<std::uint8_t>(result);
+
+		s_Flags[FlagCarry] = result & 0x100;
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagOverflow] = (s_Registers.A & 0b0100'0000) ^ bit7;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+	}
+
+	static auto AddWithCarryAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		AddWithCarry(cpu.ReadAbsoluteAddress());
+
+		return OpValue{ 3, 4 };
+	}
+	
+	static auto AddWithCarryAbsoluteIndexed(CPU& cpu, std::uint8_t Registers::*reg) -> std::optional<OpValue>
+	{
+		AddWithCarry(cpu.ReadAbsoluteAddressRegister(reg));
+
+		return OpValue{ 3, 4 };
+	}
+
+	static auto AddWithCarryImmediate(CPU& cpu) -> std::optional<OpValue>
+	{
+		AddWithCarry(cpu.ReadAddress(s_Registers.PC + 1));
+
+		return OpValue{ 2, 2 };
+	}
+
+	static auto AddWithCarryZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		AddWithCarry(cpu.ReadZeropageAddress());
+
+		return OpValue{ 2, 3 };
+	}
+
+	static auto AddWithCarryZeropageReg(CPU& cpu, std::uint8_t Registers::*reg) -> std::optional<OpValue>
+	{
+		AddWithCarry(cpu.ReadZeropageAddressRegister(reg));
+
+		return OpValue{ 2, 4 };
+	}
+
+	auto And(std::uint8_t value) -> void
+	{
+		s_Registers.A = s_Registers.A & value;
+
+		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
+		s_Flags[FlagZero] = s_Registers.A == 0;
+	}
+
+	static auto AndAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		And(cpu.ReadAbsoluteAddress());
+
+		return OpValue{ 3, 4 };
+	}
+
+	static auto AndAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
+	{
+		And(cpu.ReadAbsoluteAddressRegister(reg));
+
+		return OpValue{ 3, 4 };
+	}
+
+
+	static auto AndImmediate(CPU& cpu) -> std::optional<OpValue>
+	{
+		And(cpu.ReadAddress(s_Registers.PC + 1));
+
+		return OpValue{ 2, 2 };
+	}
+
+	static auto AndZeropage(CPU& cpu) -> std::optional<OpValue>
+	{
+		And(cpu.ReadZeropageAddress());
+
+		return OpValue{ 2, 3 };
+	}
+
+	auto ArithmeticShiftLeft(std::uint8_t& value) -> void
+	{
+		s_Flags[FlagCarry] = value & 0x80;
+		value <<= 1;
+
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
+	}
+
+	static auto AslAccumulator(CPU& cpu) -> std::optional<OpValue>
+	{
+		ArithmeticShiftLeft(s_Registers.A);
+
+		return OpValue{ 1, 2 };
+	}
+
+	static auto AslAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto address = cpu.FetchAbsoluteAddress();
+		auto value = cpu.ReadAbsoluteAddress();
+
+		ArithmeticShiftLeft(value);
+
+		cpu.WriteAddress(address, value);
+
+		return OpValue{ 3, 6 };
+	}
+
+	auto Bit(std::uint8_t value) -> void
+	{
 		s_Flags[FlagZero] = (s_Registers.A & value) == 0;
 		s_Flags[FlagOverflow] = value & 0b0100'0000;
 		s_Flags[FlagNegative] = value & 0b1000'0000;
@@ -189,407 +349,34 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
-	static auto JmpAbsolute(CPU& cpu) -> std::optional<OpValue>
+	static auto Branch(CPU& cpu, const std::uint8_t flag, bool condition) -> std::optional<OpValue>
 	{
-		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
-		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
+		std::int8_t relativePosition = cpu.ReadAddress(s_Registers.PC + 1);
 
-		PrintCommandArg(address);
+		s_Registers.PC += 2;
 
-		s_Registers.PC = address;
+		bool boundaryCrossed = ((s_Registers.PC + relativePosition) & 0xFF00) != (s_Registers.PC & 0xFF00);
 
-		return OpValue{ 0, 3 };
-	}
-
-	static auto JmpIndirect(CPU& cpu) -> std::optional<OpValue>
-	{
-		// JMP Zeropage?
-		auto addressZeroPage = cpu.ReadAddress(s_Registers.PC + 1);
-//		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
-//		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
-//		std::uint16_t address = (addressHigh << 8) + addressLow;
-
-//#if PRINT_COMMANDS
-//		std::println("   JMP $({:04x})", addressZeroPage);
-//#endif
-
-		auto jumpAddressLow = cpu.ReadAddress(addressZeroPage);
-		auto jumpAddressHigh = cpu.ReadAddress(addressZeroPage + 1);
-		std::uint16_t jumpAddress = (jumpAddressHigh << 8) + jumpAddressLow;
-
-//		std::println("   JMP $({:04x})", jumpAddress);
-
-		s_Registers.PC = jumpAddress;
-
-		// TODO: fix cycles
-		return OpValue{ 0, 5 };
-	}
-
-	static auto JsrAbsolute(CPU& cpu) -> std::optional<OpValue>
-	{
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
-		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
-
-//		std::println("Jsr abs push {:04x}", s_Registers.PC);
-
-		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
-		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-
-		PrintCommandArg(address);
-
-		s_Registers.PC = address;
-
-		return OpValue{ 0, 3 };
-	}
-
-	static auto ReturnFromSubroutine(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto addressLow = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
-		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-
-//		std::println("RTS to 0x{:04x}", address);
-		s_Registers.PC = address + 1;
-
-		return OpValue{ 0, 6 };
-	}
-
-	auto CPU::ReadAddress(std::uint16_t address) -> std::uint8_t
-	{
-		return m_MemoryManager.ReadMemory(MemoryOwner::CPU, address);
-	}
-
-	auto CPU::WriteAddress(std::uint16_t address, std::uint8_t value) -> void
-	{
-		// Check for OAM DMA write
-		if (address == 0x4014)
+		if (s_Flags[flag] == condition)
 		{
-			m_MemoryManager.DMATransfer(MemoryOwner::PPU, value);
-			s_DMACycles = 514;
+			s_Registers.PC += relativePosition;
 		}
 
-		if (address == 0x4015)
-		{
-			m_MemoryManager.DMATransfer(MemoryOwner::ASU, value);
-			s_DMACycles = 4;
-//			s_DMCDMA.store(true);
-		}
-
-		return m_MemoryManager.WriteMemory(MemoryOwner::CPU, address, value);
+		return OpValue{ 0, static_cast<std::uint8_t>(2 + (boundaryCrossed ? 2 : 1)) };
 	}
 
-
-	auto CPU::FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t
+	static auto Break(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC) & 0xFF00) >> 8));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC) & 0xFF));
 
-		return address;
-	}
+		s_Flags[FlagInterrupt] = true;
 
-	auto CPU::FetchAddress() -> std::uint16_t
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (memoryHigh << 8) + memoryLow;
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(s_Flags.to_ulong()));
 
-		return address;
-	}
+		s_Flags[FlagBreak] = true;
 
-	auto CPU::FetchZeropageAddress() -> std::uint16_t
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		std::uint16_t address = (0x00 << 8) + memoryLow;
-
-		return address;
-	}
-
-	auto CPU::FetchZeropageAddressRegister(std::uint8_t Registers::*reg, std::string_view regString) -> std::uint16_t
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		std::uint16_t address = (0x00 << 8) + memoryLow + s_Registers.*reg;
-
-		return address;
-	}
-
-	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (memoryHigh << 8) + memoryLow;
-
-		PrintCommandArg(address);
-
-		return m_MemoryManager.ReadMemory(MemoryOwner::CPU, address);
-	}
-
-	auto CPU::ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg, std::string_view regString) -> std::uint8_t
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
-
-		PrintCommandArgAbsolute(address, regString);
-
-		return ReadAddress(address);
-	}
-
-	auto CPU::ReadIndirectIndexed() -> std::uint8_t
-	{
-		auto zeropageAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC + 1);
-
-		auto addressLow = ReadAddress(zeropageAddress);
-		auto addressHigh = ReadAddress(zeropageAddress + 1);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-
-		address += s_Registers.Y;
-
-//		std::println(" ZeroPage address read: {:04x}", address);
-
-		return ReadAddress(address);
-	}
-
-	auto CPU::ReadZeropageAddress() -> std::uint8_t
-	{
-		auto addressLow = ReadAddress(s_Registers.PC + 1);
-		std::uint8_t addressHigh{ 0 };
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-
-		return ReadAddress(address);
-	}
-
-	auto CPU::ReadZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint8_t
-	{
-		auto addressLow = ReadAddress(s_Registers.PC + 1);
-		std::uint8_t addressHigh{ 0 };
-		std::uint16_t address = (addressHigh << 8) + addressLow + s_Registers.*reg;
-
-		return ReadAddress(address);
-	}
-
-	auto CPU::WriteAbsoluteAddress(const std::uint8_t value) -> void
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (memoryHigh << 8) + memoryLow;
-
-		PrintCommandArg(address);
-
-		WriteAddress(address, value);
-	}
-
-	auto CPU::WriteAbsoluteAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value, std::string_view regString) -> void
-	{
-		auto memoryLow = ReadAddress(s_Registers.PC + 1);
-		auto memoryHigh = ReadAddress(s_Registers.PC + 2);
-		std::uint16_t address = (memoryHigh << 8) + memoryLow + s_Registers.*reg;
-
-		PrintCommandArgAbsolute(address, regString);
-
-		WriteAddress(address, value);
-	}
-
-	auto CPU::WriteIndirectIndexed(std::uint8_t value) -> void
-	{
-		auto zeropageAddress = ReadAddress(s_Registers.PC + 1);
-		PrintCommandArgIndirect(zeropageAddress, "Y");
-
-		auto addressLow = ReadAddress(zeropageAddress);
-		auto addressHigh = ReadAddress(zeropageAddress + 1);
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-	
-		address += s_Registers.Y;
-
-		WriteAddress(address, value);
-	}
-
-	auto CPU::WriteZeropageAddress(const std::uint8_t value) -> void
-	{
-		auto addressLow = ReadAddress(s_Registers.PC + 1);
-		std::uint8_t addressHigh{ 0 };
-		std::uint16_t address = (addressHigh << 8) + addressLow;
-
-		PrintCommandArg(address);
-
-		WriteAddress(address, value);
-	}
-
-	auto CPU::WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void
-	{
-		auto addressLow = ReadAddress(s_Registers.PC + 1);
-		std::uint8_t addressHigh{ 0 };
-		std::uint16_t address = (addressHigh << 8) + addressLow + s_Registers.*reg;
-
-		WriteAddress(address, value);
-	}
-
-	static auto AddWithCarryAbsolute(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadAbsoluteAddress();
-
-		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
-		s_Registers.A = static_cast<std::uint8_t>(result);
-
-		s_Flags[FlagCarry] = result & 0x100;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagOverflow] = s_Registers.A & 0b0100'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 3, 4 };
-	}
-	
-	static auto AddWithCarryAbsoluteIndexed(CPU& cpu, std::uint8_t Registers::*reg, std::string_view regString) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
-
-		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
-		s_Registers.A = static_cast<std::uint8_t>(result);
-
-		s_Flags[FlagCarry] = result & 0x100;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagOverflow] = s_Registers.A & 0b0100'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 3, 4 };
-	}
-
-	static auto AddWithCarryImmediate(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
-		s_Registers.A = static_cast<std::uint8_t>(result);
-
-		s_Flags[FlagCarry] = result & 0x100;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagOverflow] = s_Registers.A & 0b0100'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 2, 2 };
-	}
-
-	static auto AddWithCarryZeropage(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadZeropageAddress();
-
-		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
-		s_Registers.A = static_cast<std::uint8_t>(result);
-
-		s_Flags[FlagCarry] = result & 0x100;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagOverflow] = s_Registers.A & 0b0100'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 2, 3 };
-	}
-
-	static auto AddWithCarryZeropageReg(CPU& cpu, std::uint8_t Registers::*reg) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadZeropageAddressRegister(reg);
-
-		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
-		s_Registers.A = static_cast<std::uint8_t>(result);
-
-		s_Flags[FlagCarry] = result & 0x100;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagOverflow] = s_Registers.A & 0b0100'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 2, 4 };
-	}
-
-	static auto AndAbsolute(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadAbsoluteAddress();
-
-		s_Registers.A = s_Registers.A & value;
-
-		// TODO: Add boundary check
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 3, 4 };
-	}
-
-	static auto AndAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
-
-		PrintCommandArgAbsolute(value, regString);
-
-		s_Registers.A = s_Registers.A & value;
-
-		// TODO: Add boundary check
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 3, 4 };
-	}
-
-
-	static auto AndImmediate(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		PrintCommandArg(value);
-
-		s_Registers.A = s_Registers.A & value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 2, 2 };
-	}
-
-	static auto AndZeropage(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto value = cpu.ReadZeropageAddress();
-
-		PrintCommandArg(value);
-
-		s_Registers.A = s_Registers.A & value;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 2, 3 };
-	}
-
-	static auto AslAccumulator(CPU& cpu) -> std::optional<OpValue>
-	{
-		s_Flags[FlagCarry] = s_Registers.A & 0x80;
-		s_Registers.A <<= 1;
-
-		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
-		s_Flags[FlagZero] = s_Registers.A == 0;
-
-		return OpValue{ 1, 2 };
-	}
-
-	static auto AslAbsolute(CPU& cpu) -> std::optional<OpValue>
-	{
-		auto address = cpu.FetchAddress();
-		auto value = cpu.ReadAbsoluteAddress();
-
-		s_Flags[FlagCarry] = value & 0x80;
-		value <<= 1;
-
-		cpu.WriteAddress(address, value);
-
-		s_Flags[FlagNegative] = value & 0b1000'0000;
-		s_Flags[FlagZero] = value == 0;
-
-		return OpValue{ 3, 6 };
+		return OpValue{ 1, 7 };
 	}
 
 	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
@@ -606,9 +393,9 @@ namespace emu
 		return OpValue{ 3, 4 };
 	}
 
-	static auto CmpAbsoluteIndexed(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	static auto CmpAbsoluteIndexed(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+		auto value = cpu.ReadAbsoluteAddressRegister(reg);
 
 		std::uint8_t result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
@@ -621,10 +408,6 @@ namespace emu
 	static auto CmpImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-		PrintCommandArg(value, true);
-
-//		if (s_Registers.X == 1)
-//			__debugbreak();
 
 		std::uint8_t result = s_Registers.*reg - value;
 
@@ -649,7 +432,7 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
-	static auto CmpZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offset, std::string_view regString) -> std::optional<OpValue>
+	static auto CmpZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offset) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadZeropageAddressRegister(offset);
 
@@ -673,7 +456,7 @@ namespace emu
 
 	static auto DecAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto address = cpu.FetchAddress();
+		auto address = cpu.FetchAbsoluteAddress();
 		auto value = cpu.ReadAddress(address);
 
 		value--;
@@ -686,10 +469,10 @@ namespace emu
 		return OpValue{ 3, 6 };
 	}
 
-	static auto DecAbsoluteRegister(CPU& cpu, std::uint8_t Registers::*reg, std::string_view regString) -> std::optional<OpValue>
+	static auto DecAbsoluteRegister(CPU& cpu, std::uint8_t Registers::*reg) -> std::optional<OpValue>
 	{
 		auto address = cpu.FetchAbsluteAddressRegister(reg);
-		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+		auto value = cpu.ReadAbsoluteAddressRegister(reg);
 
 		value--;
 
@@ -716,9 +499,9 @@ namespace emu
 		return OpValue{ 2, 5 };
 	}
 
-	static auto DecZeropageReg(CPU& cpu, std::uint8_t Registers::*reg, std::string_view regString) -> std::optional<OpValue>
+	static auto DecZeropageReg(CPU& cpu, std::uint8_t Registers::*reg) -> std::optional<OpValue>
 	{
-		auto address = cpu.FetchZeropageAddressRegister(reg, regString);
+		auto address = cpu.FetchZeropageAddressRegister(reg);
 		auto value = cpu.ReadZeropageAddressRegister(reg);
 
 		value -= 1;
@@ -747,8 +530,6 @@ namespace emu
 	{
 		auto address = cpu.FetchZeropageAddress();
 		auto value = cpu.ReadZeropageAddress();
-
-		PrintCommandArg(address);
 
 		s_Registers.A = s_Registers.A ^ value;
 
@@ -798,6 +579,47 @@ namespace emu
 		return OpValue{ 2, 5 };
 	}
 
+	static auto JmpAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
+		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		s_Registers.PC = address;
+
+		return OpValue{ 0, 3 };
+	}
+
+	static auto JmpIndirect(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto addressZeroPage = cpu.ReadAddress(s_Registers.PC + 1);
+
+		auto jumpAddressLow = cpu.ReadAddress(addressZeroPage);
+		auto jumpAddressHigh = cpu.ReadAddress(addressZeroPage + 1);
+		std::uint16_t jumpAddress = (jumpAddressHigh << 8) + jumpAddressLow;
+
+		s_Registers.PC = jumpAddress;
+
+		// TODO: fix cycles
+		return OpValue{ 0, 5 };
+	}
+
+	static auto JsrAbsolute(CPU& cpu) -> std::optional<OpValue>
+	{
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>(((s_Registers.PC + 2) & 0xFF00) >> 8));
+		cpu.WriteAddress(StackLocation + s_Registers.SP--, static_cast<std::uint8_t>((s_Registers.PC + 2) & 0xFF));
+
+		//		std::println("Jsr abs push {:04x}", s_Registers.PC);
+
+		auto addressLow = cpu.ReadAddress(s_Registers.PC + 1);
+		auto addressHigh = cpu.ReadAddress(s_Registers.PC + 2);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		s_Registers.PC = address;
+
+		return OpValue{ 0, 3 };
+	}
+
 	static auto LdAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAbsoluteAddress();
@@ -809,9 +631,9 @@ namespace emu
 		return OpValue{ 3, 4 };
 	}
 
-	static auto LdAbsoluteReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg, std::string_view regString) -> std::optional<OpValue>
+	static auto LdAbsoluteReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(offsetReg, regString);
+		auto value = cpu.ReadAbsoluteAddressRegister(offsetReg);
 
 		s_Registers.*reg = value;
 
@@ -826,8 +648,6 @@ namespace emu
 	static auto LdImmediate(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
-
-		PrintCommandArg(value);
 
 		s_Registers.*reg = value;
 
@@ -856,8 +676,6 @@ namespace emu
 		auto address = cpu.FetchZeropageAddress();
 		auto value = cpu.ReadZeropageAddress();
 
-		PrintCommandArg(address);
-
 		s_Registers.*reg = value;
 
 		s_Flags[FlagNegative] = value & 0b1000'0000;
@@ -866,7 +684,7 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
-	static auto LdZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg, std::string_view regString) -> std::optional<OpValue>
+	static auto LdZeropageReg(CPU& cpu, std::uint8_t Registers::* reg, std::uint8_t Registers::* offsetReg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadZeropageAddressRegister(offsetReg);
 
@@ -892,7 +710,7 @@ namespace emu
 
 	static auto LogicalShiftRightAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto address = cpu.FetchAddress();
+		auto address = cpu.FetchAbsoluteAddress();
 		auto value = cpu.ReadAbsoluteAddress();
 
 		s_Flags[FlagCarry] = value & 0x01;
@@ -937,9 +755,9 @@ namespace emu
 		return OpValue{ 3, 4 };
 	}
 
-	static auto OrAbsoluteRegister(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	static auto OrAbsoluteRegister(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+		auto value = cpu.ReadAbsoluteAddressRegister(reg);
 	
 		s_Registers.A = s_Registers.A | value;
 
@@ -954,8 +772,6 @@ namespace emu
 	{
 		auto value = cpu.ReadAddress(s_Registers.PC + 1);
 
-		PrintCommandArg(value);
-
 		s_Registers.A = s_Registers.A | value;
 
 		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
@@ -968,8 +784,6 @@ namespace emu
 	{
 		auto value = cpu.ReadIndirectIndexed();
 
-		PrintCommandArgIndirect(value, "Y");
-
 		s_Registers.A = s_Registers.A | value;
 
 		s_Flags[FlagNegative] = s_Registers.A & 0b1000'0000;
@@ -981,8 +795,6 @@ namespace emu
 	static auto OrZeropage(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadZeropageAddress();
-
-		PrintCommandArg(value);
 
 		s_Registers.A = s_Registers.A | value;
 
@@ -1038,6 +850,17 @@ namespace emu
 		return OpValue{ 0, 6 };
 	}
 
+	static auto ReturnFromSubroutine(CPU& cpu) -> std::optional<OpValue>
+	{
+		auto addressLow = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+		auto addressHigh = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
+		std::uint16_t address = (addressHigh << 8) + addressLow;
+
+		s_Registers.PC = address + 1;
+
+		return OpValue{ 0, 6 };
+	}
+
 	static auto RotateLeft(CPU& cpu) -> std::optional<OpValue>
 	{
 		bool carryFlag = (s_Registers.A & 0x80);
@@ -1071,7 +894,7 @@ namespace emu
 
 	static auto RotateLeftAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		auto address = cpu.FetchAddress();
+		auto address = cpu.FetchAbsoluteAddress();
 		std::uint8_t value = cpu.ReadAddress(address);
 
 		bool carryFlag = value & 0x80;
@@ -1090,7 +913,6 @@ namespace emu
 	static auto RotateLeftAbsoluteX(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
-		PrintCommandArgAbsolute(address, "X");
 
 		std::uint8_t value = cpu.ReadAddress(address);
 
@@ -1125,7 +947,6 @@ namespace emu
 	static auto RotateRightAbsoluteX(CPU& cpu) -> std::optional<OpValue>
 	{
 		auto address = cpu.FetchAbsluteAddressRegister(&Registers::X);
-		PrintCommandArgAbsolute(address, "X");
 
 		auto value = cpu.ReadAddress(address);
 		bool carry = s_Flags[FlagCarry];
@@ -1156,11 +977,11 @@ namespace emu
 		return OpValue{ 3, 4 };
 	}
 
-	static auto SbcAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	static auto SbcAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
 
-		auto value = cpu.ReadAbsoluteAddressRegister(reg, regString);
+		auto value = cpu.ReadAbsoluteAddressRegister(reg);
 		
 		auto result = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
 
@@ -1200,7 +1021,7 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
-	static auto SbcZeropageOffset(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regString) -> std::optional<OpValue>
+	static auto SbcZeropageOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto value = cpu.ReadZeropageAddressRegister(reg);
 
@@ -1237,19 +1058,18 @@ namespace emu
 
 	static auto StaAbsoluteReg(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		cpu.WriteAbsoluteAddressRegister(reg, s_Registers.A, "A");
+		cpu.WriteAbsoluteAddressRegister(reg, s_Registers.A);
 
 		return OpValue{ 3, 5 };
 	}
 
-	static auto StaIndirect(CPU& cpu, std::uint8_t Registers::* reg, std::string_view regStr) -> std::optional<OpValue>
+	static auto StaIndirect(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		auto zeropageAddress = cpu.ReadAddress(s_Registers.PC + 1);
 
 		auto addressLow = cpu.ReadAddress(zeropageAddress);
 		auto addressHigh = cpu.ReadAddress(zeropageAddress + 1);
 		std::uint16_t address = (addressHigh << 8) + addressLow;
-		PrintCommandArgIndirect(address, regStr);
 		address += s_Registers.*reg;
 
 		cpu.WriteAddress(address, s_Registers.A);
@@ -1289,7 +1109,7 @@ namespace emu
 		s_OpCodes[0x10] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagNegative, false); };
 		s_OpCodes[0x11] = []([[maybe_unused]] CPU& cpu) { return OrIndirectIndexed(cpu, &Registers::A); };
 		s_OpCodes[0x18] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = false; return OpValue{ 1, 2 }; };
-		s_OpCodes[0x19] = []([[maybe_unused]] CPU& cpu) { return OrAbsoluteRegister(cpu, &Registers::Y, "Y"); };
+		s_OpCodes[0x19] = []([[maybe_unused]] CPU& cpu) { return OrAbsoluteRegister(cpu, &Registers::Y); };
 		s_OpCodes[0x20] = []([[maybe_unused]] CPU& cpu) { return JsrAbsolute(cpu); };
 		s_OpCodes[0x24] = []([[maybe_unused]] CPU& cpu) { return BitZeropage(cpu); };
 		s_OpCodes[0x25] = []([[maybe_unused]] CPU& cpu) { return AndZeropage(cpu); };
@@ -1302,8 +1122,8 @@ namespace emu
 		s_OpCodes[0x2e] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAbsolute(cpu); };
 		s_OpCodes[0x30] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagNegative, true); };
 		s_OpCodes[0x38] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = true; return OpValue{ 1, 2 }; };
-		s_OpCodes[0x39] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::Y, "Y"); };
-		s_OpCodes[0x3d] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::X, "X"); };
+		s_OpCodes[0x39] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::Y); };
+		s_OpCodes[0x3d] = []([[maybe_unused]] CPU& cpu) { return AndAbsoluteOffset(cpu, &Registers::X); };
 		s_OpCodes[0x3e] = []([[maybe_unused]] CPU& cpu) { return RotateLeftAbsoluteX(cpu); };
 		s_OpCodes[0x40] = []([[maybe_unused]] CPU& cpu) { return ReturnFromInterrupt(cpu); };
 		s_OpCodes[0x45] = []([[maybe_unused]] CPU& cpu) { return EorZeropage(cpu); };
@@ -1322,8 +1142,8 @@ namespace emu
 		s_OpCodes[0x6d] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsolute(cpu); };
 		s_OpCodes[0x75] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryZeropageReg(cpu, &Registers::X); };
 		s_OpCodes[0x78] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagInterrupt] = true;  return OpValue{ 1, 2 }; };
-		s_OpCodes[0x79] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsoluteIndexed(cpu, &Registers::Y, "Y"); };
-		s_OpCodes[0x7d] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsoluteIndexed(cpu, &Registers::X, "X"); };
+		s_OpCodes[0x79] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsoluteIndexed(cpu, &Registers::Y); };
+		s_OpCodes[0x7d] = []([[maybe_unused]] CPU& cpu) { return AddWithCarryAbsoluteIndexed(cpu, &Registers::X); };
 		s_OpCodes[0x7e] = []([[maybe_unused]] CPU& cpu) { return RotateRightAbsoluteX(cpu); };
 		s_OpCodes[0x84] = []([[maybe_unused]] CPU& cpu) { return StZeropage(cpu, &Registers::Y); };
 		s_OpCodes[0x85] = []([[maybe_unused]] CPU& cpu) { return StZeropage(cpu, &Registers::A); };
@@ -1353,13 +1173,13 @@ namespace emu
 		s_OpCodes[0xae] = []([[maybe_unused]] CPU& cpu) { return LdAbsolute(cpu, &Registers::X); };
 		s_OpCodes[0xb0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagCarry, true); };
 		s_OpCodes[0xb1] = []([[maybe_unused]] CPU& cpu) { return LdaIndirectIndex(cpu); };
-		s_OpCodes[0xb4] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::Y, &Registers::X, "X"); };
-		s_OpCodes[0xb5] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::A, &Registers::X, "X"); };
-		s_OpCodes[0xb6] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::X, &Registers::Y, "Y"); };
-		s_OpCodes[0xbd] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::X, "X"); };
-		s_OpCodes[0xbe] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::X, &Registers::Y, "Y"); };
-		s_OpCodes[0xb9] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::Y, "Y"); };
-		s_OpCodes[0xbc] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::Y, &Registers::X, "X"); };
+		s_OpCodes[0xb4] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::Y, &Registers::X); };
+		s_OpCodes[0xb5] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::A, &Registers::X); };
+		s_OpCodes[0xb6] = []([[maybe_unused]] CPU& cpu) { return LdZeropageReg(cpu, &Registers::X, &Registers::Y); };
+		s_OpCodes[0xbd] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::X); };
+		s_OpCodes[0xbe] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::X, &Registers::Y); };
+		s_OpCodes[0xb9] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::A, &Registers::Y); };
+		s_OpCodes[0xbc] = []([[maybe_unused]] CPU& cpu) { return LdAbsoluteReg(cpu, &Registers::Y, &Registers::X); };
 		s_OpCodes[0xc0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::Y); };
 		s_OpCodes[0xc5] = []([[maybe_unused]] CPU& cpu) { return CmpZeropage(cpu, &Registers::A); };
 		s_OpCodes[0xc6] = []([[maybe_unused]] CPU& cpu) { return DecZeropage(cpu); };
@@ -1370,11 +1190,11 @@ namespace emu
 		s_OpCodes[0xcd] = []([[maybe_unused]] CPU& cpu) { return CmpAbsolute(cpu, &Registers::A); };
 		s_OpCodes[0xce] = []([[maybe_unused]] CPU& cpu) { return DecAbsolute(cpu); };
 		s_OpCodes[0xd0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagZero, false); };
-		s_OpCodes[0xd5] = []([[maybe_unused]] CPU& cpu) { return CmpZeropageReg(cpu, &Registers::A, &Registers::X, "X"); };
-		s_OpCodes[0xd6] = []([[maybe_unused]] CPU& cpu) { return DecZeropageReg(cpu, &Registers::X, "X"); };
+		s_OpCodes[0xd5] = []([[maybe_unused]] CPU& cpu) { return CmpZeropageReg(cpu, &Registers::A, &Registers::X); };
+		s_OpCodes[0xd6] = []([[maybe_unused]] CPU& cpu) { return DecZeropageReg(cpu, &Registers::X); };
 		s_OpCodes[0xd8] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagDecimal] = false; return OpValue{ 1, 2 }; };
-		s_OpCodes[0xd9] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::Y, "Y"); };
-		s_OpCodes[0xde] = []([[maybe_unused]] CPU& cpu) { return DecAbsoluteRegister(cpu, &Registers::X, "X"); };
+		s_OpCodes[0xd9] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::Y); };
+		s_OpCodes[0xde] = []([[maybe_unused]] CPU& cpu) { return DecAbsoluteRegister(cpu, &Registers::X); };
 		s_OpCodes[0xe0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::X); };
 		s_OpCodes[0xe5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropage(cpu); };
 		s_OpCodes[0xe6] = []([[maybe_unused]] CPU& cpu) { return IncZeropage(cpu); };
@@ -1383,8 +1203,8 @@ namespace emu
 		s_OpCodes[0xed] = []([[maybe_unused]] CPU& cpu) { return SbcAbsolute(cpu); };
 		s_OpCodes[0xee] = []([[maybe_unused]] CPU& cpu) { return IncAbsolute(cpu); };
 		s_OpCodes[0xf0] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagZero, true); };
-		s_OpCodes[0xf5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropageOffset(cpu, &Registers::X, "X"); };
-		s_OpCodes[0xf9] = []([[maybe_unused]] CPU& cpu) { return SbcAbsoluteOffset(cpu, &Registers::Y, "Y"); };
+		s_OpCodes[0xf5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropageOffset(cpu, &Registers::X); };
+		s_OpCodes[0xf9] = []([[maybe_unused]] CPU& cpu) { return SbcAbsoluteOffset(cpu, &Registers::Y); };
 	}
 
 
