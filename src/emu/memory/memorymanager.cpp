@@ -22,7 +22,7 @@ namespace emu
 	static std::uint16_t ScrollY{ 0u };
 
 	static std::uint8_t ControllerClock{ 0u };
-
+	static std::uint8_t PPUDataBuffer{ 0u };
 
 
 	auto ReadController(std::uint8_t controllerID) -> std::uint8_t 
@@ -73,6 +73,20 @@ namespace emu
 
 	auto MemoryManager::ReadMemory(MemoryOwner owner, std::uint16_t address) -> std::uint8_t
 	{
+		if (address > 0x2002 && address <= 0x2008 && owner == MemoryOwner::CPU)
+		{
+	//		std::println(" Read PPU: {:04x}", address);
+
+			if (address == 0x2007)
+			{
+				std::uint8_t value = PPUDataBuffer;
+				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
+				PPUDataBuffer = ReadMemory(MemoryOwner::PPU, PPUAddress);
+
+				return value;
+			}
+		}
+
 		for (auto& chunk : m_Chunks)
 		{
 			if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
@@ -118,7 +132,7 @@ namespace emu
 	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck) -> void
 	{
 		// Special handling for PPUADDR and PPUDATA transfers
-		if (!skipPPUCheck && (address == 0x2003 || address == 0x2005 || address == 0x2006 || address == 0x2007)) // && address <= 0x2007))
+		if (!skipPPUCheck && (address == 0x2003 || address == 0x2004 || address == 0x2005 || address == 0x2006 || address == 0x2007))
 		{
 			HandlePPUAddress(address, value);
 			return;
@@ -174,18 +188,20 @@ namespace emu
 		{
 //			std::println(" DMA 0x4014: {:02x}", value);
 			length = 0x100;
+
+			std::uint16_t address = (value << 8) & 0xFF00;
+
+			for (auto i = 0; i < length; i++)
+			{
+				// Write via PPUDATA
+				WriteMemory(MemoryOwner::CPU, 0x2004, ReadMemory(MemoryOwner::CPU, address + i));
+			}
 		}
 		else if (targetOwner == MemoryOwner::ASU)
 		{
 			length = 2;
 		}
 
-		std::uint16_t address = (value << 8) & 0xFF00;
-
-		for (auto i = 0; i < length; i++)
-		{
-			WriteMemory(targetOwner, i, ReadMemory(MemoryOwner::CPU, address + i));
-		}
 	}
 
 	auto MemoryManager::HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void
@@ -202,6 +218,8 @@ namespace emu
 			case 0x2004:
 			{
 				WriteMemory(MemoryOwner::PPU, OAMAddress, value, true);
+				OAMAddress++;
+
 				break;
 			}
 
@@ -215,16 +233,21 @@ namespace emu
 //				std::println(" ScrollX: {:02x}\n ScrollY: {:02x}", ScrollX, ScrollY);
 
 				RegisterW = !RegisterW;
+
 				break;
 			}
 
 			case 0x2006:
 			{
 				if (!RegisterW)
+				{
 					PPUAddress = ((value & 0x3F) << 8) & 0xFF00;
+//					std::println("PPUAddress half: {:04x}", PPUAddress);
+				}
 				else
 				{
-					PPUAddress += value;	
+					PPUAddress += value;
+					PPUDataBuffer = ReadMemory(MemoryOwner::PPU, PPUAddress);
 					std::println("PPUAddress: {:04x}", PPUAddress);
 				}
 
@@ -235,8 +258,8 @@ namespace emu
 
 			case 0x2007:
 			{
-//				std::println("PPUData write: {:04x} = {:02x}", PPUAddress, value);
-				WriteMemory(MemoryOwner::PPU, PPUAddress++, value, true);
+				WriteMemory(MemoryOwner::PPU, PPUAddress, value, true);
+				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
 				break;
 			}
 		}

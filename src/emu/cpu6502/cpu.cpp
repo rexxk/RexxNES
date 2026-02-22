@@ -1105,7 +1105,7 @@ namespace emu
 		{
 			MemoryChunk chunk{};
 			chunk.StartAddress = 0x0000;
-			chunk.Size = 0x8000;
+			chunk.Size = 0x0800;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::CPU;
 			chunk.Name = "CPU RAM";
@@ -1159,7 +1159,7 @@ namespace emu
 			}
 
 			{
-				m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x4016, Controller::GetButtonBits());
+//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x4016, Controller::GetButtonBits());
 			}
 
 // Debug Vframe when PPU is disable
@@ -1210,9 +1210,11 @@ namespace emu
 //				if (s_Registers.PC == 0x8e04)
 //				if (s_Registers.PC == 0x9012)
 //				if (s_Registers.PC == 0x8ebb)
-//				if (s_Registers.PC == 0x858b || s_Registers.PC == 0x8e44)
-//					m_PowerHandler.SetState(PowerState::Suspended);
-				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20))
+//				if (s_Registers.PC == 0x8745)
+//				if (s_Registers.PC == 0x8175)  // OperModeExecutionTree
+				if (s_Registers.PC == 0x8567 || s_Registers.PC == 0x9404)  // ScreenRoutines | RenderSceneryTerrain
+					m_PowerHandler.SetState(PowerState::Suspended);
+				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20 || opCode == 0x40))
 				{
 					m_PowerHandler.SetState(PowerState::Suspended);
 					s_StepToRTS.store(false);

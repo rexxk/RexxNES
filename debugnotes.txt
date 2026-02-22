@@ -57,6 +57,37 @@ VRAM_AddrTable_High
  858b - ::InitScreen
  8220 - .MoveAllSpritesOffscreen
  8e19 - .InitializeNameTables
+
+0 -> 859b - SetupIntermediate
+    85f1 - .GetPlayerColors
+
+1 -> 8652 - WriteTopStatusLine
+    8808 - .WriteGameText
+
+2 -> 865a - WriteBottomStatusLine
+    bc35 - .GetSBNybbles
+    8f06 - .PrintStatusBarNumbers
+
+3 -> 8693 - DisplayTimeUp
+4 -> 86a8 - ResetSpritesAndScreenTimer
+      .dw DisplayIntermediate
+6 -> 86a8 - ResetSpritesAndScreenTimer
+8 -> 86e6 - AreaParserTaskControl
+      92c8 - .AreaParserTasks
+      93fc - ..AreaParserCore
+-->   9404 -   .RenderSceneryTerrain
+
+          .GetAreaPalette
+      .dw GetBackgroundColor
+      .dw GetAlternatePalette1
+      .dw DrawTitleScreen
+      .dw ClearBuffersDrawIcon
+      .dw WriteTopScore
+
+85c8 - NextSubtask
+
+8745 - IncSubtask
+
 8e04 - JumpEngine
 
 8e19 - InitializeNameTables

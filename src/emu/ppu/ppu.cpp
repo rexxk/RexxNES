@@ -69,8 +69,8 @@ namespace emu
 			// PPU RAM (2k bytes)
 			MemoryChunk chunk{};
 			// TODO: StartAddress can be rewired with custom cartridge hardware
-			chunk.StartAddress = 0x2000;
-			chunk.Size = 0x2000;
+			chunk.StartAddress = 0x0100;
+			chunk.Size = 0x3F00;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
 			chunk.Name = "PPU RAM";
@@ -78,8 +78,8 @@ namespace emu
 			m_MemoryManager.AddChunk(chunk);
 		}
 
-		for (auto& color : Palette4)
-			m_MemoryManager.WriteMemory(MemoryOwner::PPU, 0x3F00 + index, Palette4.at(index++));
+//		for (auto& color : Palette4)
+//			m_MemoryManager.WriteMemory(MemoryOwner::PPU, 0x3F00 + index, Palette4.at(index++));
 	}
 
 
