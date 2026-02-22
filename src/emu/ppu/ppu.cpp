@@ -299,8 +299,14 @@ namespace emu
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
 				std::uint16_t attribute = (y / 32u) * 8u + x / 32u;
 
-				auto attributeValue = attributeData[attribute];
 				auto nametableValue = nametableData[tile];
+				auto attributeValue = attributeData[attribute];
+
+				std::uint8_t tilePosX = (tile % 4) > 1 ? 1 : 0;
+				std::uint8_t tilePosY = (tile / 4) > 1 ? 2 : 1;
+
+				// Shift down attributeValue to correct block
+				std::uint8_t tileAttribute = (attributeValue >> (2 * (tilePosX + tilePosY))) & 0x3;
 
 				std::vector<std::uint8_t> tileData(16);
 
@@ -322,7 +328,9 @@ namespace emu
 //						+ -------------- - 0 : Pattern table is at $0000 - $1FFF
 
 				for (auto& tileByte : tileData)
+				{
 					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
+				}
 
 				for (auto col = 0u; col < 8u; col++)
 				{
@@ -346,11 +354,10 @@ namespace emu
 					std::uint8_t spriteSelect = 0;
 					std::uint8_t paletteIndex = (spriteSelect << 4) | ((attributeValue & 0x3) << 2) | (pixelValue & 0x3);
 
-					auto color = PaletteColors.at(m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + paletteIndex));
+					auto color = PaletteColors.at(m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + 4 * tileAttribute + paletteIndex));
 
 					if (color)
 					{
-	
 						std::uint32_t position = { (y * 256u + x + col) * 4u };
 						uint8_t red = ((color & 0x0F00) >> 8);
 						uint8_t green = ((color & 0x00F0) >> 4);
