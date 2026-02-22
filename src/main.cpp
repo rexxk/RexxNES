@@ -123,6 +123,7 @@ auto main() -> int
 	ImGui_ImplOpenGL3_Init();
 	
 	emu::Cartridge cartridge("rom/SuperMarioBros.nes");
+//	emu::Cartridge cartridge("rom/DonkeyKong.nes");
 	emu::MemoryManager memoryManager(cartridge);
 
 	{

@@ -297,12 +297,9 @@ namespace emu
 					continue;
 
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
-				//				std::uint16_t attribute = (y / 16u) * 16u + x / 16u;
 				std::uint16_t attribute = (y / 32u) * 8u + x / 32u;
 
-				//				auto attributeValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + attribute + nametableOffset * 0x400 + 0x3c0);
 				auto attributeValue = attributeData[attribute];
-				//				auto nametableValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + tile + nametableOffset * 0x400);
 				auto nametableValue = nametableData[tile];
 
 				std::vector<std::uint8_t> tileData(16);
@@ -312,8 +309,17 @@ namespace emu
 				// TODO: Remove, used for hardcoded debug tests
 //				patternBaseAddress = 0;
 
-				if (nametableValue != 0x24)
-					tileData.at(0) = 0;
+//				if (nametableValue != 0x24)
+//					tileData.at(0) = 0;
+
+//					DCBA98 76543210
+//						-------------- -
+//						0HNNNN NNNNPyyy
+//						|||||| |||||++ + -T: Fine Y offset, the row number within a tile
+//						|||||| ||||+----P : Bit plane(0: less significant bit; 1: more significant bit)
+//						|| ++++ - ++++---- - N : Tile number from name table
+//						| +--------------H : Half of pattern table(0: "left"; 1: "right")
+//						+ -------------- - 0 : Pattern table is at $0000 - $1FFF
 
 				for (auto& tileByte : tileData)
 					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
@@ -322,40 +328,38 @@ namespace emu
 				{
 					auto row = y % 8u;
 
-//					auto byte1 = tileData.at(col);
-//					auto byte2 = tileData.at(col + 8);
 					auto byte1 = tileData.at(row);
 					auto byte2 = tileData.at(row + 8);
 
 					std::uint8_t pixelValue{ 0u };
 
-//						pixelValue = byte1 & 1 << (7 - col) ? pixelValue += 1 : pixelValue;
-//						pixelValue = byte2 & 1 << (7 - col) ? pixelValue += 2 : pixelValue;
 					if (byte1 & 1 << (7 - col)) pixelValue += 1;
 					if (byte2 & 1 << (7 - col)) pixelValue += 2;
 
 					if (pixelValue != 0)
 						pixelValue &= 0xFF;
+
+					if (attributeValue != 0)
+						attributeValue &= 0xFF;
+
 					// Get palette data from pixelValue (0-3)
 					std::uint8_t spriteSelect = 0;
-					std::uint8_t paletteIndex = spriteSelect << 4 + (attributeValue & 0x3) << 2 + pixelValue; // &0x3;
+					std::uint8_t paletteIndex = (spriteSelect << 4) | ((attributeValue & 0x3) << 2) | (pixelValue & 0x3);
 
-					//					std::uint8_t colorValue = m_PPUMemory.Read(0x3F00 + paletteIndex);
-
-//						auto colorValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + paletteIndex);
-					auto colorValue = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + pixelValue);
-					auto color = PaletteColors.at(colorValue);
-//						auto color = PaletteColors.at(Palette4.at(paletteIndex));
+					auto color = PaletteColors.at(m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + paletteIndex));
 
 					if (color)
 					{
+	
 						std::uint32_t position = { (y * 256u + x + col) * 4u };
+						uint8_t red = ((color & 0x0F00) >> 8);
+						uint8_t green = ((color & 0x00F0) >> 4);
+						uint8_t blue = (color & 0x000F);
 						imageData[position + 0] = ((color & 0x0F00) >> 8) / 7.0f * 255;
 						imageData[position + 1] = ((color & 0x00F0) >> 4) / 7.0f * 255;
 						imageData[position + 2] = (color & 0x000F) / 7.0f * 255;
-						imageData[position + 3] = 255;
+						imageData[position + 3] = paletteIndex ? 255 : 0;
 					}
-
 				}
 
 			}
