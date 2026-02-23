@@ -73,16 +73,27 @@ VRAM_AddrTable_High
       .dw DisplayIntermediate
 6 -> 86a8 - ResetSpritesAndScreenTimer
 8 -> 86e6 - AreaParserTaskControl
+      92b0 - AreaParserTaskHandler
       92c8 - .AreaParserTasks
       93fc - ..AreaParserCore
 -->   9404 -   .RenderSceneryTerrain
+      9508 -    .ProcessAreaData
+      9595 -     .DecodeAreaData
+      88ae - .RenderAreaGraphics
+      92db - .IncrementColumnPos
 
-          .GetAreaPalette
-      .dw GetBackgroundColor
-      .dw GetAlternatePalette1
-      .dw DrawTitleScreen
-      .dw ClearBuffersDrawIcon
-      .dw WriteTopScore
+9 -> 85bf - GetAreaPalette
+A -> 85e3 - GetBackgroundColor
+
+B -> 8643 - GetAlternatePalette1
+C -> 86ff - DrawTitleScreen
+D -> 8732 - ClearBuffersDrawIcon
+      8325 - .DrawMushroomIcon
+
+E -> 8749 - WriteTopScore
+      bc3b - .UpdateNumber
+      8f06 -  .PrintStatusBarNumbers 
+
 
 85c8 - NextSubtask
 
@@ -96,7 +107,7 @@ VRAM_AddrTable_High
 
 8e5c - ReadJoypads
 
-WriteBufferToScreen
+!! --> 8e92 - WriteBufferToScreen
 8ebb - .OutputToVRAM - FAILS
 
 8edd - UpdateScreen

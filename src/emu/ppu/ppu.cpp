@@ -293,8 +293,9 @@ namespace emu
 			for (std::uint32_t x = 0u; x < 256u; x += 8u)
 			{
 				// Draw background
-				if (!(ppuMask & 0x08))
-					continue;
+				// Disabled for debugging purposes
+//				if (!(ppuMask & 0x08))
+//					continue;
 
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
 				std::uint16_t attribute = (y / 32u) * 8u + x / 32u;

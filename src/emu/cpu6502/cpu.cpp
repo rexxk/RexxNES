@@ -1212,7 +1212,9 @@ namespace emu
 //				if (s_Registers.PC == 0x8ebb)
 //				if (s_Registers.PC == 0x8745)
 //				if (s_Registers.PC == 0x8175)  // OperModeExecutionTree
-				if (s_Registers.PC == 0x8567 || s_Registers.PC == 0x9404)  // ScreenRoutines | RenderSceneryTerrain
+//				if (s_Registers.PC == 0x9595)  // DecodeAreaData
+//				if (s_Registers.PC == 0x86ff)  // ScreenRoutines | DecodeAreaData
+				if (s_Registers.PC == 0x8567)  // ScreenRoutines | DecodeAreaData
 					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20 || opCode == 0x40))
 				{
