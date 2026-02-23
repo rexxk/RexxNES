@@ -147,6 +147,16 @@ namespace emu
 					if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
 					{
 						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
+
+						// Handle PPU mirroring
+						if (address >= 0x2000 && address < 0x3000)
+						{
+							if (m_Cartridge.GetAttributes().NametableMirroring == 0)
+								m_RAMs[chunk.ID].WriteAddress((address + 0x400) - chunk.StartAddress, value);
+							else
+								m_RAMs[chunk.ID].WriteAddress((address + 0x800) - chunk.StartAddress, value);
+						}
+
 						return;
 					}
 				}
