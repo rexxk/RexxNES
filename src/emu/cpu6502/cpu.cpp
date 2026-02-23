@@ -377,12 +377,13 @@ namespace emu
 		return OpValue{ 1, 7 };
 	}
 
-	auto Compare(std::uint8_t Registers::*reg, std::uint8_t value) -> void
+	auto Compare(std::uint8_t Registers::* reg, std::uint8_t value) -> void
 	{
 		std::uint8_t result = s_Registers.*reg - value;
 		s_Flags[FlagNegative] = result & 0b1000'0000;
 		s_Flags[FlagZero] = result == 0;
-		s_Flags[FlagCarry] = result >= 0;
+//		s_Flags[FlagCarry] = result >= 0;
+		s_Flags[FlagCarry] = s_Registers.*reg >= value;
 	}
 
 	static auto CmpAbsolute(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
@@ -1078,6 +1079,7 @@ namespace emu
 		s_OpCodes[0xd6] = []([[maybe_unused]] CPU& cpu) { return DecZeropageReg(cpu, &Registers::X); };
 		s_OpCodes[0xd8] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagDecimal] = false; return OpValue{ 1, 2 }; };
 		s_OpCodes[0xd9] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::A, &Registers::Y); };
+		s_OpCodes[0xdd] = []([[maybe_unused]] CPU& cpu) { return CmpAbsoluteIndexed(cpu, &Registers::A, &Registers::X); };
 		s_OpCodes[0xde] = []([[maybe_unused]] CPU& cpu) { return DecAbsoluteRegister(cpu, &Registers::X); };
 		s_OpCodes[0xe0] = []([[maybe_unused]] CPU& cpu) { return CmpImmediate(cpu, &Registers::X); };
 		s_OpCodes[0xe5] = []([[maybe_unused]] CPU& cpu) { return SbcZeropage(cpu); };
@@ -1214,8 +1216,8 @@ namespace emu
 //				if (s_Registers.PC == 0x8175)  // OperModeExecutionTree
 //				if (s_Registers.PC == 0x9595)  // DecodeAreaData
 //				if (s_Registers.PC == 0x86ff)  // ScreenRoutines | DecodeAreaData
-				if (s_Registers.PC == 0x8567)  // ScreenRoutines | DecodeAreaData
-					m_PowerHandler.SetState(PowerState::Suspended);
+//				if (s_Registers.PC == 0x8567)  // ScreenRoutines | DecodeAreaData
+//					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20 || opCode == 0x40))
 				{
 					m_PowerHandler.SetState(PowerState::Suspended);
