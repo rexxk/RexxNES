@@ -69,8 +69,8 @@ namespace emu
 			// PPU RAM (2k bytes)
 			MemoryChunk chunk{};
 			// TODO: StartAddress can be rewired with custom cartridge hardware
-			chunk.StartAddress = 0x0100;
-			chunk.Size = 0x3F00;
+			chunk.StartAddress = 0x2000;
+			chunk.Size = 0x2000;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
 			chunk.Name = "PPU RAM";
@@ -294,8 +294,8 @@ namespace emu
 			{
 				// Draw background
 				// Disabled for debugging purposes
-//				if (!(ppuMask & 0x08))
-//					continue;
+				if (!(ppuMask & 0x08))
+					continue;
 
 				std::uint16_t tile = (y / 8u) * (32u) + x / 8u;
 				std::uint16_t attribute = (y / 32u) * 8u + x / 32u;

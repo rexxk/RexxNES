@@ -80,8 +80,12 @@ namespace emu
 			if (address == 0x2007)
 			{
 				std::uint8_t value = PPUDataBuffer;
-				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
 				PPUDataBuffer = ReadMemory(MemoryOwner::PPU, PPUAddress);
+
+//				std::println(" PPU Read: {:04x} - {:02x} ({:02x})", PPUAddress, value, PPUDataBuffer);
+
+				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
+
 
 				return value;
 			}
@@ -268,6 +272,9 @@ namespace emu
 
 			case 0x2007:
 			{
+				if (PPUAddress < 0x2000 && PPUAddress >= 0x0100)
+					std::println("Invalid PPUAddress for write: {:04x}", PPUAddress);
+
 				WriteMemory(MemoryOwner::PPU, PPUAddress, value, true);
 				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
 				break;

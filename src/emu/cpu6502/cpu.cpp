@@ -745,6 +745,13 @@ namespace emu
 		return OpValue{ 2, 3 };
 	}
 
+	static auto OrZeropageOffset(CPU& cpu, std::uint8_t Registers::*offset) -> std::optional<OpValue>
+	{
+		Or(cpu.ReadZeropageAddressRegister(offset));
+
+		return OpValue{ 2, 4 };
+	}
+
 	static auto PullFromStack(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
 		s_Registers.*reg = cpu.ReadAddress(StackLocation + ++s_Registers.SP);
@@ -993,8 +1000,10 @@ namespace emu
 		s_OpCodes[0x0e] = []([[maybe_unused]] CPU& cpu) { return AslAbsolute(cpu); };
 		s_OpCodes[0x10] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagNegative, false); };
 		s_OpCodes[0x11] = []([[maybe_unused]] CPU& cpu) { return OrIndirectIndexed(cpu, &Registers::A); };
+		s_OpCodes[0x15] = []([[maybe_unused]] CPU& cpu) { return OrZeropageOffset(cpu, &Registers::X); };
 		s_OpCodes[0x18] = []([[maybe_unused]] CPU& cpu) { s_Flags[FlagCarry] = false; return OpValue{ 1, 2 }; };
 		s_OpCodes[0x19] = []([[maybe_unused]] CPU& cpu) { return OrAbsoluteRegister(cpu, &Registers::Y); };
+		s_OpCodes[0x1D] = []([[maybe_unused]] CPU& cpu) { return OrAbsoluteRegister(cpu, &Registers::X); };
 		s_OpCodes[0x20] = []([[maybe_unused]] CPU& cpu) { return JsrAbsolute(cpu); };
 		s_OpCodes[0x24] = []([[maybe_unused]] CPU& cpu) { return BitZeropage(cpu); };
 		s_OpCodes[0x25] = []([[maybe_unused]] CPU& cpu) { return AndZeropage(cpu); };
@@ -1040,7 +1049,9 @@ namespace emu
 		s_OpCodes[0x8e] = []([[maybe_unused]] CPU& cpu) { return StAbsolute(cpu, &Registers::X); };
 		s_OpCodes[0x90] = []([[maybe_unused]] CPU& cpu) { return Branch(cpu, FlagCarry, false); };
 		s_OpCodes[0x91] = []([[maybe_unused]] CPU& cpu) { return StaIndirectIndexed(cpu); };
+		s_OpCodes[0x94] = []([[maybe_unused]] CPU& cpu) { return StZeropageReg(cpu, &Registers::Y, &Registers::X); };
 		s_OpCodes[0x95] = []([[maybe_unused]] CPU& cpu) { return StZeropageReg(cpu, &Registers::A, &Registers::X); };
+		s_OpCodes[0x96] = []([[maybe_unused]] CPU& cpu) { return StZeropageReg(cpu, &Registers::X, &Registers::Y); };
 		s_OpCodes[0x98] = []([[maybe_unused]] CPU& cpu) { return Transfer(&Registers::Y, &Registers::A); };
 		s_OpCodes[0x99] = []([[maybe_unused]] CPU& cpu) { return StaAbsoluteReg(cpu, &Registers::Y); };
 		s_OpCodes[0x9a] = []([[maybe_unused]] CPU& cpu) { s_Registers.SP = s_Registers.X; return OpValue{ 1, 2 }; };
