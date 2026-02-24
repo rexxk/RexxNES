@@ -84,7 +84,7 @@ namespace emu
 
 //				std::println(" PPU Read: {:04x} - {:02x} ({:02x})", PPUAddress, value, PPUDataBuffer);
 
-				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
+				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x4 ? 32 : 1;
 
 
 				return value;
@@ -108,7 +108,7 @@ namespace emu
 					if (address == 0x2002)
 					{
 						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value & 0x7F);
-//						RegisterW = false;
+						RegisterW = false;
 					}
 
 					if (address == 0x4016)
@@ -262,7 +262,7 @@ namespace emu
 				{
 					PPUAddress += value;
 					PPUDataBuffer = ReadMemory(MemoryOwner::PPU, PPUAddress);
-					std::println("PPUAddress: {:04x}", PPUAddress);
+//					std::println("PPUAddress: {:04x}", PPUAddress);
 				}
 
 				RegisterW = !RegisterW;
@@ -276,7 +276,7 @@ namespace emu
 					std::println("Invalid PPUAddress for write: {:04x}", PPUAddress);
 
 				WriteMemory(MemoryOwner::PPU, PPUAddress, value, true);
-				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x2 ? 32 : 1;
+				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x4 ? 32 : 1;
 				break;
 			}
 		}
