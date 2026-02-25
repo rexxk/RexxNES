@@ -99,11 +99,14 @@ E -> 8749 - WriteTopScore
 
 8745 - IncSubtask
 
+896a - RenderAttributeTables
+
 8e04 - JumpEngine
 
 8e19 - InitializeNameTables
 8e2d - .WriteNTAddr
 8e3e - .InitNTLoop
+8e4d - .InitATLoop
 
 8e5c - ReadJoypads
 

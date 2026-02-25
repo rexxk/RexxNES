@@ -331,10 +331,10 @@ namespace emu
 	auto Bit(std::uint8_t value) -> void
 	{
 		s_Flags[FlagZero] = (s_Registers.A & value) == 0;
-//		s_Flags[FlagOverflow] = value & 0b0100'0000;
+		s_Flags[FlagOverflow] = value & 0b0100'0000;
 		s_Flags[FlagNegative] = value & 0b1000'0000;
 
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+//		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
 	}
 
 	static auto BitAbsolute(CPU& cpu) -> std::optional<OpValue>
@@ -818,8 +818,8 @@ namespace emu
 		value += s_Flags[FlagCarry];
 
 		s_Flags[FlagCarry] = carryFlag;
-		s_Flags[FlagNegative] = static_cast<std::uint8_t>(value) & 0b1000'0000;
-		s_Flags[FlagZero] = static_cast<std::uint8_t>(value) == 0;
+		s_Flags[FlagNegative] = value & 0b1000'0000;
+		s_Flags[FlagZero] = value == 0;
 
 		return value;
 	}
@@ -870,7 +870,7 @@ namespace emu
 	auto RotateRight(std::uint8_t value) -> std::uint8_t
 	{
 		bool carryFlag = value & 0x01;
-		value = value >> 1 + s_Flags[FlagCarry] << 7;
+		value = (value >> 1) | (s_Flags[FlagCarry] ? 0x80 : 0x00);
 
 		s_Flags[FlagCarry] = carryFlag;
 		s_Flags[FlagNegative] = value & 0b1000'0000;
@@ -898,26 +898,16 @@ namespace emu
 		return OpValue{ 3, 7 };
 	}
 
-	auto SubtractWithCarry(std::uint8_t value) -> void
-	{
-		s_Registers.A = s_Registers.A + (0xFF - value) + s_Flags[FlagCarry];
-
-		s_Flags[FlagZero] = s_Registers.A == 0;
-		s_Flags[FlagNegative] = s_Registers.A & 0x80;
-		s_Flags[FlagCarry] = s_Registers.A >= 0;
-		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
-	}
-
 	static auto SbcAbsolute(CPU& cpu) -> std::optional<OpValue>
 	{
-		SubtractWithCarry(cpu.ReadAbsoluteAddress());
+		AddWithCarry(~cpu.ReadAbsoluteAddress());
 
 		return OpValue{ 3, 4 };
 	}
 
 	static auto SbcAbsoluteOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		SubtractWithCarry(cpu.ReadAbsoluteAddressRegister(reg));
+		AddWithCarry(~cpu.ReadAbsoluteAddressRegister(reg));
 		
 		bool boundaryCrossed = (((s_Registers.PC + s_Registers.*reg) & 0xFF00) != (s_Registers.PC & 0xFF00));
 
@@ -926,21 +916,21 @@ namespace emu
 
 	static auto SbcImmediate(CPU& cpu) -> std::optional<OpValue>
 	{
-		SubtractWithCarry(cpu.ReadAddress(s_Registers.PC + 1));
+		AddWithCarry(~cpu.ReadAddress(s_Registers.PC + 1));
 
 		return OpValue{ 2, 2 };
 	}
 
 	static auto SbcZeropage(CPU& cpu) -> std::optional<OpValue>
 	{
-		SubtractWithCarry(cpu.ReadZeropageAddress());
+		AddWithCarry(~cpu.ReadZeropageAddress());
 
 		return OpValue{ 2, 3 };
 	}
 
 	static auto SbcZeropageOffset(CPU& cpu, std::uint8_t Registers::* reg) -> std::optional<OpValue>
 	{
-		SubtractWithCarry(cpu.ReadZeropageAddressRegister(reg));
+		AddWithCarry(~cpu.ReadZeropageAddressRegister(reg));
 
 		return OpValue{ 2, 4 };
 	}
@@ -1230,8 +1220,8 @@ namespace emu
 //				if (s_Registers.PC == 0x8745)
 //				if (s_Registers.PC == 0x8175)  // OperModeExecutionTree
 //				if (s_Registers.PC == 0x9595)  // DecodeAreaData
-//				if (s_Registers.PC == 0x86ff)  // ScreenRoutines | DecodeAreaData
-//				if (s_Registers.PC == 0x8567)  // ScreenRoutines | DecodeAreaData
+//				if (s_Registers.PC == 0x88ae || s_Registers.PC == 0x8e4d)  // RenderAreaGraphics | InitializeNameTables
+//				if (s_Registers.PC == 0x8e92) //  || s_Registers.PC == 0x896a)  // ScreenRoutines | DecodeAreaData
 //					m_PowerHandler.SetState(PowerState::Suspended);
 				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20 || opCode == 0x40))
 				{

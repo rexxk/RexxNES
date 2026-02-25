@@ -142,6 +142,9 @@ namespace emu
 			return;
 		}
 
+//		if (address == 0x23fe)
+//			__debugbreak();
+
 		for (auto& chunk : m_Chunks)
 		{
 			if (owner == chunk.Owner)
@@ -274,6 +277,9 @@ namespace emu
 			{
 				if (PPUAddress < 0x2000 && PPUAddress >= 0x0100)
 					std::println("Invalid PPUAddress for write: {:04x}", PPUAddress);
+				
+//				if (PPUAddress >= 0x23C0 && PPUAddress < 0x2400 && value == 0xaa)
+//					std::println(" Attrib {:04x} : {:02x}", PPUAddress, value);
 
 				WriteMemory(MemoryOwner::PPU, PPUAddress, value, true);
 				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x4 ? 32 : 1;
