@@ -146,9 +146,9 @@ namespace emu
 //				m_MMIO[IO_PPUSTATUS] &= 0x7F;
 
 //				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
-//				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
-//				value &= 0x7F;
-//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
+				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				value &= 0x7F;
+				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
 			// Set Sprite0 hit flag
@@ -341,10 +341,10 @@ namespace emu
 					// Get palette data from pixelValue (0-3)
 					std::uint8_t spriteSelect = 0;
 					std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (pixelValue & 0x3);
-//					std::uint8_t paletteIndex = (spriteSelect << 4) | ((attributeValue & 0x3) << 2) | (pixelValue & 0x3);
 
 					auto color = PaletteColors.at(m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + paletteIndex));
 
+					if (color != 0)
 					{
 						std::uint32_t position = { (y * 256u + x + col) * 4u };
 						imageData[position + 0] = ((color & 0x0F00) >> 8) / 7.0f * 255;
