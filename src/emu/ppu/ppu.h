@@ -31,7 +31,7 @@ namespace emu
 
 		auto GenerateImageData(std::span<std::uint8_t> imageData) -> void;
 		auto GetInternalMemory() -> std::array<std::uint8_t, 0x100>& { return m_OAM; }
-		auto GetImageData() -> std::vector<std::uint8_t>& { return m_ImageData; }
+		auto GetImageData() -> std::vector<std::uint8_t>&;
 
 	private:
 		auto ProcessScanline(std::uint16_t scanline) -> std::uint16_t;
@@ -54,9 +54,6 @@ namespace emu
 
 		std::condition_variable m_CV{};
 		std::mutex m_Mutex{};
-
-		std::vector<std::uint8_t> m_ImageData;
-
 	};
 
 }

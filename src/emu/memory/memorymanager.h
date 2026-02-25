@@ -57,6 +57,8 @@ namespace emu
 		auto WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck = false) -> void;
 		auto GetIOAddress(std::uint16_t address) -> std::uint8_t&;
 
+		auto GetMemory(const std::string& memoryName) -> std::vector<std::uint8_t> &;
+
 		auto DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void;
 
 		auto HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void;

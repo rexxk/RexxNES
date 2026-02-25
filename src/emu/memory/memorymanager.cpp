@@ -221,6 +221,17 @@ namespace emu
 
 	}
 
+	auto MemoryManager::GetMemory(const std::string& memoryName) -> std::vector<std::uint8_t>&
+	{
+		for (auto& chunk : m_Chunks)
+		{
+			if (chunk.Name == memoryName)
+				return m_RAMs.at(chunk.ID).GetData();
+		}
+
+		return m_RAMs.at(m_Chunks.at(0).ID).GetData();
+	}
+
 	auto MemoryManager::HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void
 	{
 		switch (address)

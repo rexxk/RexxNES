@@ -38,6 +38,9 @@ namespace emu
 		0x777, 0x567, 0x657, 0x757, 0x747, 0x755, 0x764, 0x770, 0x773, 0x572, 0x473, 0x276, 0x467, 0x666, 0x653, 0x760,
 	};
 
+	static std::vector<std::uint8_t> ImageData;
+
+
 //	static std::vector<std::uint8_t> Palette4 {
 //		0x18, 0x03, 0x1C, 0x28, 0x2E, 0x35, 0x01, 0x17, 0x10, 0x1F, 0x2A, 0x0E, 0x36, 0x37, 0x0B, 0x39,
 //		0x25, 0x1E, 0x12, 0x34, 0x2E, 0x1D, 0x06, 0x26, 0x3E, 0x1B, 0x22, 0x19, 0x04, 0x2E, 0x3A, 0x21,
@@ -49,7 +52,7 @@ namespace emu
 		: m_PowerHandler(powerHandler), m_MemoryManager(memoryManager), m_NametableAlignment(nametableAlignment)
 	{
 		m_Pixels.resize(256 * 240);
-		m_ImageData.resize(256u * 240u * 4u);
+		ImageData.resize(256u * 240u * 4u);
 
 		std::uint16_t index{};
 
@@ -73,7 +76,7 @@ namespace emu
 			chunk.Size = 0x2000;
 			chunk.Type = MemoryType::RAM;
 			chunk.Owner = MemoryOwner::PPU;
-			chunk.Name = "PPU RAM";
+			chunk.Name = "VRAM";
 
 			m_MemoryManager.AddChunk(chunk);
 		}
@@ -82,6 +85,10 @@ namespace emu
 //			m_MemoryManager.WriteMemory(MemoryOwner::PPU, 0x3F00 + index, Palette4.at(index++));
 	}
 
+	auto PPU::GetImageData() -> std::vector<std::uint8_t>&
+	{
+		return ImageData;
+	}
 
 //	auto PPU::WritePPUAddress(std::uint8_t value) -> void
 //	{
@@ -179,7 +186,7 @@ namespace emu
 //				auto nametableAttribute = ReadMemory(0x23c0 + index);
 //			}
 
-			GenerateImageData(m_ImageData);
+			GenerateImageData(ImageData);
 
 			// Set VBlank flag
 			{
@@ -263,21 +270,43 @@ namespace emu
 		m_MemoryManager.WriteMemory(MemoryOwner::PPU, address, value);
 	}
 
+	auto DrawTile(std::uint16_t x, std::uint16_t y, std::uint8_t sizeY) -> void
+	{
+		for (auto posY = y; posY < (y + sizeY); posY++)
+		{
+			for (auto posX = x; posX < (x + 8); posX++)
+			{
+				ImageData.at(posY * 256 + posX + 0) = 255;
+				ImageData.at(posY * 256 + posX + 1) = 255 / (posX + 1);
+				ImageData.at(posY * 256 + posX + 2) = 255 / (posX + 1);
+				ImageData.at(posY * 256 + posX + 3) = 255;
+			}
+		}
+	}
+
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
 		auto ppuCtrl = m_MemoryManager.GetIOAddress(PPUCTRL);
 		auto ppuMask = m_MemoryManager.GetIOAddress(PPUMASK);
 
+		auto& oamMemory = m_MemoryManager.GetMemory("OAM RAM");
+		auto& vram = m_MemoryManager.GetMemory("VRAM");
+
 		auto nametableOffset = (ppuCtrl & 0x03) * 0x400;
 		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
+		std::uint16_t spritePatternTable = ppuCtrl & 0x08 ? 0x1000 : 0x0000;
+		std::uint8_t spriteSize = ppuCtrl & 0x20 ? 16 : 8;
 
 		std::vector<std::uint8_t> nametableData(32 * 30);
+
+		std::vector<std::uint8_t> pixelValues(8);
 
 		for (auto y = 0; y < 30; y++)
 		{
 			for (auto x = 0; x < 32; x++)
 			{
-				nametableData[y * 32 + x] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + y * 32 + x);
+//				nametableData[y * 32 + x] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + y * 32 + x);
+				nametableData[y * 32 + x] = vram.at(nametableOffset + y * 32 + x);
 			}
 		}
 
@@ -285,12 +314,13 @@ namespace emu
 
 		for (auto i = 0; i < 0x40; i++)
 		{
-			attributeData[i] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + 0x3c0 + i);
+//			attributeData[i] = m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x2000 + nametableOffset + 0x3c0 + i);
+			attributeData[i] = vram.at(nametableOffset + 0x3c0 + i);
 		}
 
-		for (std::uint32_t y = 0u; y < 240u; y++)
+		for (std::uint32_t y = 0u; y < 240u; y+=8)
 		{
-			for (std::uint32_t x = 0u; x < 256u; x += 8u)
+			for (std::uint32_t x = 0u; x < 256u; x+=8)
 			{
 				// Draw background
 				// Disabled for debugging purposes
@@ -302,6 +332,9 @@ namespace emu
 
 				auto nametableValue = nametableData[tile];
 				auto attributeValue = attributeData[attribute];
+
+				std::uint8_t spriteSelect = 0;
+				std::uint8_t pixelValue{ 0u };
 
 				std::uint8_t tilePosX = (x % 32) > 15 ? 1 : 0;
 				std::uint8_t tilePosY = (y % 32) > 15 ? 2 : 0;
@@ -326,45 +359,91 @@ namespace emu
 					tileByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, patternBaseAddress + nametableValue * 16u + tileByteAddress++);
 				}
 
-				for (auto col = 0u; col < 8u; col++)
+//				for (auto col = 0u; col < 8u; col++)
+//				{
+				auto col = x % 8u;
+				auto row = y % 8u;
+
+				auto byte1 = tileData.at(row);
+				auto byte2 = tileData.at(row + 8);
+
+				if (byte1 & 1 << (7 - col)) pixelValue += 1;
+				if (byte2 & 1 << (7 - col)) pixelValue += 2;
+
+//				pixelValues.at(col) = pixelValue;
+//				}
+
+				// Draw sprites
+				if (ppuMask & 0x10)
 				{
-					auto row = y % 8u;
+					std::uint16_t spritePatternTable = ppuCtrl & 0x04 ? 0x1000 : 0x0000;
+					//						std::uint8_t spriteSize = ppuCtrl & 0x20 ? 1 : 0;
 
-					auto byte1 = tileData.at(row);
-					auto byte2 = tileData.at(row + 8);
-
-					std::uint8_t pixelValue{ 0u };
-
-					if (byte1 & 1 << (7 - col)) pixelValue += 1;
-					if (byte2 & 1 << (7 - col)) pixelValue += 2;
-
-					// Get palette data from pixelValue (0-3)
-					std::uint8_t spriteSelect = 0;
-					std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (pixelValue & 0x3);
-
-					auto color = PaletteColors.at(m_MemoryManager.ReadMemory(MemoryOwner::PPU, 0x3F00 + paletteIndex));
-
-					if (color != 0)
+											// Read sprites
+					for (auto spriteIndex = 0; spriteIndex < 64; spriteIndex++)
 					{
-						std::uint32_t position = { (y * 256u + x + col) * 4u };
-						imageData[position + 0] = ((color & 0x0F00) >> 8) / 7.0f * 255;
-						imageData[position + 1] = ((color & 0x00F0) >> 4) / 7.0f * 255;
-						imageData[position + 2] = (color & 0x000F) / 7.0f * 255;
-						imageData[position + 3] = 255; // paletteIndex ? 255 : 0;
+						auto yPosition = oamMemory.at(spriteIndex * 4);
+
+						if (yPosition >= 0xef)
+							continue;
+
+						auto tileIndex = vram.at(spriteIndex * 4 + 1);
+						auto attribute = vram.at(spriteIndex * 4 + 2);
+						auto xPosition = vram.at(spriteIndex * 4 + 3);
+
+						if (y >= yPosition && y < yPosition + spriteSize && x >= xPosition && x < xPosition + 8)
+						{
+							if (spriteSize == 8)
+							{
+								std::vector<std::uint8_t> spriteData(16);
+								std::uint16_t spriteByteAddress = 0;
+
+								for (auto& spriteByte : spriteData)
+								{
+									spriteByte = m_MemoryManager.ReadMemory(MemoryOwner::PPU, spritePatternTable + tileIndex * 16u + spriteByteAddress++);
+								}
+
+								spriteSelect = 1;
+
+								auto col = x % 8u;
+								auto row = y % 8u;
+
+								auto byte1 = spriteData.at(row);
+								auto byte2 = spriteData.at(row + 8);
+
+//								if (byte1 & 1 << (7 - col)) spriteTile += 1;
+//								if (byte2 & 1 << (7 - col)) spriteTile += 2;
+
+							}
+
+						}
 					}
 				}
 
+				// Get palette data from pixelValue (0-3)
+
+//				for (auto index = 0; index < 8; index++)
+//				{
+				std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (pixelValue & 0x3);
+//				std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (pixelValues.at(index) & 0x3);
+				auto color = PaletteColors.at(vram.at(0x3F00 - 0x2000 + paletteIndex));
+
+				if (color != 0)
+				{
+//					std::uint32_t position = { (y * 256u + (x + index)) * 4u };
+					std::uint32_t position = { (y * 256u + x) * 4u };
+					//					std::uint32_t position = { (y * 256u + x) * 4u };
+					imageData[position + 0] = ((color & 0x0F00) >> 8) / 7.0f * 255;
+					imageData[position + 1] = ((color & 0x00F0) >> 4) / 7.0f * 255;
+					imageData[position + 2] = (color & 0x000F) / 7.0f * 255;
+					imageData[position + 3] = 255; // paletteIndex ? 255 : 0;
+				}
+	//			}
+
+				DrawTile(x, y, 8);
 			}
 		}
 
-		// Draw sprites
-		if (ppuMask & 0x10)
-		{
-			std::uint16_t spritePatternTable = ppuCtrl & 0x04 ? 0x1000 : 0x0000;
-			std::uint8_t spriteSize = ppuCtrl & 0x20 ? 1 : 0;
-
-			
-		}
 	}
 
 }
