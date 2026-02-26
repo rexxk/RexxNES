@@ -33,6 +33,8 @@ namespace emu
 		auto GetInternalMemory() -> std::array<std::uint8_t, 0x100>& { return m_OAM; }
 		auto GetImageData() -> std::vector<std::uint8_t>&;
 
+		auto IsDrawing() -> bool;
+
 	private:
 		auto ProcessScanline(std::uint16_t scanline) -> std::uint16_t;
 

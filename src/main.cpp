@@ -284,6 +284,9 @@ auto main() -> int
 			ImGui::Begin("Graphics");
 
 			//			ppu.GenerateImageData(imageData);
+			while (ppu.IsDrawing())
+				;
+
 			displayTexture.SetData(ppu.GetImageData());
 			ImGui::Image(displayTexture.GetTexture(), ImVec2{ 512, 480 });
 

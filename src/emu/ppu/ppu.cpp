@@ -4,6 +4,7 @@
 #include "emu/system/powerhandler.h"
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <print>
@@ -60,6 +61,9 @@ namespace emu
 //		0x33, 0x20, 0x08, 0x16, 0x3F, 0x2B, 0x20, 0x3C, 0x2E, 0x27, 0x23, 0x31, 0x29, 0x32, 0x2C, 0x09,
 //	};
 
+	std::atomic<bool> SceneIsDrawing{ false };
+
+
 	PPU::PPU(PowerHandler& powerHandler, MemoryManager& memoryManager, std::uint8_t nametableAlignment)
 		: m_PowerHandler(powerHandler), m_MemoryManager(memoryManager), m_NametableAlignment(nametableAlignment)
 	{
@@ -99,8 +103,13 @@ namespace emu
 //			m_MemoryManager.WriteMemory(MemoryOwner::PPU, 0x3F00 + index, Palette4.at(index++));
 	}
 
+	auto PPU::IsDrawing() -> bool { return SceneIsDrawing.load(); }
+
 	auto PPU::GetImageData() -> std::vector<std::uint8_t>&
 	{
+		while (SceneIsDrawing.load())
+			;
+
 		return ImageData;
 	}
 
@@ -199,6 +208,9 @@ namespace emu
 //			{
 //				auto nametableAttribute = ReadMemory(0x23c0 + index);
 //			}
+
+			while (SceneIsDrawing.load())
+				;
 
 			GenerateImageData(ImageData);
 
@@ -332,7 +344,12 @@ namespace emu
 			for (auto xIndex = 0; xIndex < 8; xIndex++)
 			{
 				std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (Tilemap[tileID].PixelValues.at(yIndex * 8 + xIndex) & 0x3);
-				auto color = PaletteColors.at(palette[0x1F00 + paletteIndex]);
+				auto paletteColor = palette[0x1F00 + paletteIndex];
+
+				if (paletteColor == 0x0f && paletteIndex % 4 == 0)
+					paletteColor = 0x22;
+
+				auto color = PaletteColors.at(paletteColor);
 
 				auto posX = x * 8 + xIndex;
 				auto posY = y * 8 + yIndex;
@@ -347,25 +364,56 @@ namespace emu
 
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
+		SceneIsDrawing.store(true);
+
 		auto ppuCtrl = m_MemoryManager.GetIOAddress(PPUCTRL);
 		auto ppuMask = m_MemoryManager.GetIOAddress(PPUMASK);
 
 		auto& oamMemory = m_MemoryManager.GetMemory("OAM RAM");
 		auto& vram = m_MemoryManager.GetMemory("VRAM");
 
-		auto nametableOffset = (ppuCtrl & 0x03) * 0x400;
 		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
 		std::uint16_t spritePatternTable = ppuCtrl & 0x08 ? 0x1000 : 0x0000;
 		std::uint8_t spriteSize = ppuCtrl & 0x20 ? 16 : 8;
 
+//		auto scrollX = m_MemoryManager.GetScrollXRegister();
+//		auto scrollY = m_MemoryManager.GetScrollYRegister();
+
+//		if (scrollX > 31)
+//		{
+//			scrollX = 0;
+//		}
+
+
+//		scrollX += ppuCtrl & 0x1 ? 256 : 0;
+//		scrollY += ppuCtrl & 0x2 ? 240 : 0;
+
+//		if (scrollX != 0 || scrollY != 0)
+//			std::println("ScrollX: {}, ScrollY: {}", scrollX, scrollY);
+
 		Tilemap.clear();
+
+		std::uint16_t nametableOffset{ 0 };
 
 		// Load tile data
 		for (auto y = 0; y < 30; y++)
 		{
 			for (auto x = 0; x < 32; x++)
 			{
-				std::uint8_t tileID = vram.at(nametableOffset + y * 32 + x);
+				nametableOffset = (ppuCtrl & 0x03) * 0x400;
+
+				auto scrollX = m_MemoryManager.GetScrollXRegister();
+				auto scrollY = m_MemoryManager.GetScrollYRegister();
+
+				scrollX = 8;
+
+				if (x + scrollX > 31)
+				{
+					scrollX = 0;
+					nametableOffset ^= 0x400;
+				}
+
+				std::uint8_t tileID = vram.at(nametableOffset + y * 32 + x + scrollX);
 				NametableData[y * 32 + x] = tileID;
 
 				if (!Tilemap.contains(tileID))
@@ -378,7 +426,7 @@ namespace emu
 
 		for (auto i = 0; i < 0x40; i++)
 		{
-			attributeData[i] = vram.at(nametableOffset + 0x3c0 + i);
+			attributeData[i] = vram.at(nametableOffset+ 0x400 + 0x3c0 + i);
 		}
 
 		// Parse screen (tilewise)
@@ -406,6 +454,7 @@ namespace emu
 			}
 		}
 
+		SceneIsDrawing.store(false);
 	}
 
 }
