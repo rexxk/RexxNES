@@ -1152,8 +1152,9 @@ namespace emu
 		auto frequencyDivider = static_cast<double>(freq) / frequency;
 
 		std::uint64_t cycles{ 0 };
+		std::uint64_t failedExecute{ 0 };
+		std::uint64_t failedCycles{ 0 };
 
-		
 		while (m_Executing.load())
 		{
 			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
@@ -1243,11 +1244,19 @@ namespace emu
 					QueryPerformanceCounter(&endCount);
 
 					countsElapsed = endCount.QuadPart - startCount.QuadPart;
+
+					if (countsElapsed > (frameCycles * frequencyDivider))
+					{
+						failedExecute++;
+						failedCycles += countsElapsed - (frameCycles * frequencyDivider);
+					}
+
 				} while (static_cast<double>(countsElapsed) < (frameCycles * frequencyDivider));
 			}
 		}
 
 		std::println("Cycles: {}", cycles);
+		std::println("Failed to execute in time count: {} - average miss: {} cycles", failedExecute, failedCycles / static_cast<float>(failedExecute));
 	}
 
 	auto CPU::GetRegisters() -> Registers&
