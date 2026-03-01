@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -58,6 +59,9 @@ namespace emu
 
 	private:
 		Cartridge& m_Cartridge;
+		
+		std::mutex m_PPURAMMutex;
+		std::mutex m_WriteMutex;
 	};
 
 

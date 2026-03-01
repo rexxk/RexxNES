@@ -3,6 +3,7 @@
 #include "emu/cartridge/mapper.h"
 #include "input/controller.h"
 
+#include <mutex>
 #include <print>
 
 #include "imgui.h"
@@ -84,6 +85,8 @@ namespace emu
 
 	auto MemoryManager::ReadPPURAM(std::uint16_t address) -> std::uint8_t
 	{
+		std::lock_guard<std::mutex> lock(m_PPURAMMutex);
+
 		return Map.PPURAM.Data.at(address - Map.PPURAM.StartAddress);
 	}
 	
@@ -147,6 +150,8 @@ namespace emu
 
 	auto MemoryManager::WritePPURAM(std::uint16_t address, std::uint8_t value) -> void
 	{
+		std::lock_guard<std::mutex> lock(m_PPURAMMutex);
+
 		if (address >= 0x2000 && address < 0x3000)
 		{
 			if (m_Cartridge.GetAttributes().NametableMirroring == 0)
@@ -160,6 +165,7 @@ namespace emu
 
 	auto MemoryManager::WriteAPUIO(std::uint16_t address, std::uint8_t value) -> void
 	{
+		std::lock_guard<std::mutex> lock(m_WriteMutex);
 		Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
 	}
 

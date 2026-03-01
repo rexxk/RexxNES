@@ -1192,6 +1192,7 @@ namespace emu
 
 				if (s_NMI.load() && s_NMIRunning.load() == false && cycles > 500)
 				{
+					s_NMI.store(false);
 					s_NMIRunning.store(true);
 					Break(*this);
 					// PC = 0xFFFA - 1
@@ -1208,19 +1209,17 @@ namespace emu
 					std::println("IRQ vector is unused in NES");
 				}
 
-				s_NMI.store(false);
 
 //				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
 				auto opCode = m_MemoryManager.ReadProgramROM(s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);
 
-				if (!maybeExecuted)
-					break;
+//				if (!maybeExecuted)
+//					break;
 
 				if (maybeExecuted->ClockCycles == 0)
 				{
 					std::println("Invalid opcode: {:02x}", opCode);
-//					m_RunningMode.store(RunningMode::Halt);
 					m_PowerHandler.SetState(PowerState::Suspended);
 				}
 
@@ -1236,11 +1235,11 @@ namespace emu
 //				if (s_Registers.PC == 0x88ae || s_Registers.PC == 0x8e4d)  // RenderAreaGraphics | InitializeNameTables
 //				if (s_Registers.PC == 0x8e92) //  || s_Registers.PC == 0x896a)  // ScreenRoutines | DecodeAreaData
 //					m_PowerHandler.SetState(PowerState::Suspended);
-				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20 || opCode == 0x40))
-				{
-					m_PowerHandler.SetState(PowerState::Suspended);
-					s_StepToRTS.store(false);
-				}
+//				if (s_StepToRTS.load() && (opCode == 0x60 || opCode == 0x4c || opCode == 0x6c || opCode == 0x20 || opCode == 0x40))
+//				{
+//					m_PowerHandler.SetState(PowerState::Suspended);
+//					s_StepToRTS.store(false);
+//				}
 
 				cycles += maybeExecuted->ClockCycles + s_DMACycles;
 				frameCycles += maybeExecuted->ClockCycles + s_DMACycles;
