@@ -8,17 +8,6 @@ namespace emu
 	APU::APU(PowerHandler& powerHandler, MemoryManager& memoryManager)
 		: m_PowerHandler(powerHandler), m_MemoryManager(memoryManager)
 	{
-		// ASU RAM chunk - move to ASU class later
-		{
-			emu::MemoryChunk chunk{};
-			chunk.StartAddress = 0x0000;
-			chunk.Size = 0x0010;
-			chunk.Owner = emu::MemoryOwner::ASU;
-			chunk.Type = emu::MemoryType::RAM;
-			chunk.Name = "ASU RAM";
-
-			memoryManager.AddChunk(chunk);
-		}
 
 	}
 

@@ -15,33 +15,12 @@
 namespace emu
 {
 
-
-	enum class MemoryType
-	{
-		ROM,
-		RAM,
-		IO,
-	};
-
 	enum class MemoryOwner
 	{
 		CPU,
 		PPU,
 		ASU,
 		Cartridge,
-	};
-
-	struct MemoryChunk
-	{
-		std::uint16_t StartAddress{ 0l };
-		std::uint16_t Size{ 0l };
-
-		std::uint8_t ID{ 0l };
-
-		std::string Name{ "Noname" };
-
-		MemoryType Type{ MemoryType::RAM };
-		MemoryOwner Owner{ MemoryOwner::CPU };
 	};
 
 
@@ -51,17 +30,26 @@ namespace emu
 		explicit MemoryManager(Cartridge& cartridge);
 		~MemoryManager();
 
-		auto AddChunk(MemoryChunk& chunk) -> void;
+		auto ReadCharROM(std::uint16_t address) -> std::uint8_t;
+		auto ReadProgramROM(std::uint16_t address) -> std::uint8_t;
 
-		auto ReadMemory(MemoryOwner owner, std::uint16_t address) -> std::uint8_t;
-		auto WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck = false) -> void;
-		auto GetIOAddress(std::uint16_t address) -> std::uint8_t&;
+		auto ReadAPURAM(std::uint16_t address) -> std::uint8_t;
+		auto ReadCPURAM(std::uint16_t address) -> std::uint8_t;
+		auto ReadOAMRAM(std::uint16_t address) -> std::uint8_t;
+		auto ReadPPURAM(std::uint16_t address) -> std::uint8_t;
 
-		auto GetMemory(const std::string& memoryName) -> std::vector<std::uint8_t> &;
+		auto ReadAPUIO(std::uint16_t address) -> std::uint8_t;
+		auto ReadPPUIO(std::uint16_t address) -> std::uint8_t;
+
+		auto WriteAPURAM(std::uint16_t address, std::uint8_t value) -> void;
+		auto WriteCPURAM(std::uint16_t address, std::uint8_t value) -> void;
+		auto WriteOAMRAM(std::uint16_t address, std::uint8_t value) -> void;
+		auto WritePPURAM(std::uint16_t address, std::uint8_t value) -> void;
+
+		auto WriteAPUIO(std::uint16_t address, std::uint8_t value) -> void;
+		auto WritePPUIO(std::uint16_t address, std::uint8_t value) -> void;
 
 		auto DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void;
-
-		auto HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void;
 
 		auto GetScrollXRegister() const -> const std::uint16_t;
 		auto GetScrollYRegister() const -> const std::uint16_t;
@@ -70,10 +58,6 @@ namespace emu
 
 	private:
 		Cartridge& m_Cartridge;
-
-		std::vector<MemoryChunk> m_Chunks{};
-
-		std::unordered_map<std::uint8_t, RAM> m_RAMs{};
 	};
 
 

@@ -110,7 +110,8 @@ namespace emu
 
 	auto CPU::FetchIndirectIndexedAddress() -> std::uint16_t
 	{
-		auto zeropageAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC + 1);
+//		auto zeropageAddress = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC + 1);
+		auto zeropageAddress = m_MemoryManager.ReadProgramROM(s_Registers.PC + 1);
 
 		auto addressLow = ReadAddress(zeropageAddress);
 		auto addressHigh = ReadAddress(zeropageAddress + 1);
@@ -139,7 +140,14 @@ namespace emu
 
 	auto CPU::ReadAddress(std::uint16_t address) -> std::uint8_t
 	{
-		return m_MemoryManager.ReadMemory(MemoryOwner::CPU, address);
+		if (address >= 0x2000 && address < 0x2008)
+			return m_MemoryManager.ReadPPUIO(address);
+		else if (address >= 0x4000 && address < 0x4018)
+			return m_MemoryManager.ReadAPUIO(address);
+		else if (address < 0x8000)
+			return m_MemoryManager.ReadCPURAM(address);
+
+		return m_MemoryManager.ReadProgramROM(address);
 	}
 
 	auto CPU::ReadAbsoluteAddress() -> std::uint8_t
@@ -169,20 +177,33 @@ namespace emu
 
 	auto CPU::WriteAddress(std::uint16_t address, std::uint8_t value) -> void
 	{
-		// Check for OAM DMA write
-		if (address == 0x4014)
+
+		if (address >= 0x2000 && address < 0x2008)
 		{
-			m_MemoryManager.DMATransfer(MemoryOwner::PPU, value);
-			s_DMACycles = 514;
+			m_MemoryManager.WritePPUIO(address, value);
+			return;
 		}
 
-		if (address == 0x4015)
+		if (address >= 0x4000 && address < 0x4018)
 		{
-			m_MemoryManager.DMATransfer(MemoryOwner::ASU, value);
-			s_DMACycles = 4;
+			// Check for OAM DMA write
+			if (address == 0x4014)
+			{
+				m_MemoryManager.DMATransfer(MemoryOwner::PPU, value);
+				s_DMACycles = 514;
+			}
+
+			if (address == 0x4015)
+			{
+				m_MemoryManager.DMATransfer(MemoryOwner::ASU, value);
+				s_DMACycles = 4;
+			}
+
+			m_MemoryManager.WriteAPUIO(address, value);
+			return;
 		}
 
-		return m_MemoryManager.WriteMemory(MemoryOwner::CPU, address, value);
+		m_MemoryManager.WriteCPURAM(address, value);
 	}
 
 	auto CPU::WriteAbsoluteAddress(const std::uint8_t value) -> void
@@ -1108,17 +1129,6 @@ namespace emu
 		}
 
 		SetupOpCodeArray();
-
-		{
-			MemoryChunk chunk{};
-			chunk.StartAddress = 0x0000;
-			chunk.Size = 0x0800;
-			chunk.Type = MemoryType::RAM;
-			chunk.Owner = MemoryOwner::CPU;
-			chunk.Name = "CPU RAM";
-
-			m_MemoryManager.AddChunk(chunk);
-		}
 	}
 
 
@@ -1131,7 +1141,8 @@ namespace emu
 		if (startVector == 0)
 		{
 			auto resetVector = 0xFFFC;
-			s_Registers.PC = m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector + 1) << 8 + m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector);
+			s_Registers.PC = m_MemoryManager.ReadProgramROM(resetVector + 1) << 8 + m_MemoryManager.ReadProgramROM(resetVector);
+//			s_Registers.PC = m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector + 1) << 8 + m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector);
 		}
 		else
 			s_Registers.PC = startVector;
@@ -1199,7 +1210,8 @@ namespace emu
 
 				s_NMI.store(false);
 
-				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
+//				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
+				auto opCode = m_MemoryManager.ReadProgramROM(s_Registers.PC);
 				auto maybeExecuted = s_OpCodes[opCode](*this);
 
 				if (!maybeExecuted)

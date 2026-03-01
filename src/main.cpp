@@ -126,50 +126,6 @@ auto main() -> int
 //	emu::Cartridge cartridge("rom/DonkeyKong.nes");
 	emu::MemoryManager memoryManager(cartridge);
 
-	{
-		emu::MemoryChunk chunk{};
-		chunk.StartAddress = 0x8000;
-		chunk.Size = cartridge.GetROM(emu::ROMType::Program).GetSize();
-		chunk.Owner = emu::MemoryOwner::CPU;
-		chunk.Type = emu::MemoryType::ROM;
-		chunk.Name = "Program ROM";
-
-		memoryManager.AddChunk(chunk);
-	}
-	
-	{
-		emu::MemoryChunk chunk{};
-		chunk.StartAddress = 0x0000;
-		chunk.Size = cartridge.GetROM(emu::ROMType::Character).GetSize();
-		chunk.Owner = emu::MemoryOwner::PPU;
-		chunk.Type = emu::MemoryType::ROM;
-		chunk.Name = "Char ROM";
-
-		memoryManager.AddChunk(chunk);
-	}
-
-	{
-		emu::MemoryChunk chunk{};
-		chunk.StartAddress = 0x2000;
-		chunk.Size = 8;
-		chunk.Owner = emu::MemoryOwner::CPU;
-		chunk.Type = emu::MemoryType::IO;
-		chunk.Name = "PPU IO";
-
-		memoryManager.AddChunk(chunk);
-	}
-
-	{
-		emu::MemoryChunk chunk{};
-		chunk.StartAddress = 0x4000;
-		chunk.Size = 0x18;
-		chunk.Owner = emu::MemoryOwner::CPU;
-		chunk.Type = emu::MemoryType::IO;
-		chunk.Name = "CPU IO";
-
-		memoryManager.AddChunk(chunk);
-	}
-
 	emu::PowerHandler powerHandler{ emu::PowerState::Off };
 
 	emu::PPU ppu{ powerHandler, memoryManager, cartridge.GetAttributes().NametableMirroring };

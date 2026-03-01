@@ -1,4 +1,6 @@
 #include "emu/memory/memorymanager.h"
+
+#include "emu/cartridge/mapper.h"
 #include "input/controller.h"
 
 #include <print>
@@ -11,7 +13,7 @@ namespace emu
 {
 
 
-	static int SelectedChunk{ 0 };
+	static int SelectedMemory{ 0 };
 	static int MemoryPage{ 0 };
 
 	static std::uint16_t PPUAddress{ 0u };
@@ -23,6 +25,8 @@ namespace emu
 
 	static std::uint8_t ControllerClock{ 0u };
 	static std::uint8_t PPUDataBuffer{ 0u };
+
+	static MemoryMap Map;
 
 
 	auto ReadController(std::uint8_t controllerID) -> std::uint8_t 
@@ -38,21 +42,14 @@ namespace emu
 		if (ControllerClock > 7)
 			ControllerClock = 0;
 
-//		if (ControllerClock == 4)
-//			return 1;
-
 		return value;
 	}
-
-
 
 
 	MemoryManager::MemoryManager(Cartridge& cartridge)
 		: m_Cartridge(cartridge)
 	{
-		RAM dummy{ 1 };
-
-		m_RAMs[0xFF] = dummy;
+		Map = Mapper::CreateMemoryMap(cartridge);
 	}
 
 	MemoryManager::~MemoryManager()
@@ -60,192 +57,125 @@ namespace emu
 
 	}
 
-
-	auto MemoryManager::AddChunk(MemoryChunk& chunk) -> void 
-	{ 
-		chunk.ID = static_cast<std::uint8_t>(m_Chunks.size()) + 1;
-		m_Chunks.push_back(chunk); 
-
-		if (chunk.Type == MemoryType::RAM || chunk.Type == MemoryType::IO)
-			m_RAMs[chunk.ID] = RAM{ chunk.Size };
+	auto MemoryManager::ReadCharROM(std::uint16_t address) -> std::uint8_t
+	{
+		return Map.CharROM.Data.at(address - Map.CharROM.StartAddress);
 	}
 
-
-	auto MemoryManager::ReadMemory(MemoryOwner owner, std::uint16_t address) -> std::uint8_t
+	auto MemoryManager::ReadProgramROM(std::uint16_t address) -> std::uint8_t
 	{
-		if (address > 0x2002 && address <= 0x2008 && owner == MemoryOwner::CPU)
+		return Map.ProgramROM.Data.at(address - Map.ProgramROM.StartAddress);
+	}
+
+	auto MemoryManager::ReadAPURAM(std::uint16_t address) -> std::uint8_t
+	{
+		return Map.APURAM.Data.at(address - Map.APURAM.StartAddress);
+	}
+
+	auto MemoryManager::ReadCPURAM(std::uint16_t address) -> std::uint8_t
+	{
+		return Map.CPURAM.Data.at(address - Map.CPURAM.StartAddress);
+	}
+
+	auto MemoryManager::ReadOAMRAM(std::uint16_t address) -> std::uint8_t
+	{
+		return Map.OAMRAM.Data.at(address - Map.OAMRAM.StartAddress);
+	}
+
+	auto MemoryManager::ReadPPURAM(std::uint16_t address) -> std::uint8_t
+	{
+		return Map.PPURAM.Data.at(address - Map.PPURAM.StartAddress);
+	}
+	
+	auto MemoryManager::ReadAPUIO(std::uint16_t address) -> std::uint8_t
+	{
+		if (address == 0x4016)
 		{
-	//		std::println(" Read PPU: {:04x}", address);
+			return ReadController(0);
+		}
+
+		if (address == 0x4017)
+		{
+			return ReadController(1);
+		}
+
+		return Map.APUIO.Data.at(address - Map.APUIO.StartAddress);
+	}
+
+	auto MemoryManager::ReadPPUIO(std::uint16_t address) -> std::uint8_t
+	{
+		if (address >= 0x2002 && address < 0x2008)
+		{
+			if (address == 0x2002)
+			{
+//				Map.PPUIO.Data.at(2) &= 0x7F;
+				RegisterW = false;
+			}
 
 			if (address == 0x2007)
 			{
 				std::uint8_t value = PPUDataBuffer;
-				PPUDataBuffer = ReadMemory(MemoryOwner::PPU, PPUAddress);
 
-//				std::println(" PPU Read: {:04x} - {:02x} ({:02x})", PPUAddress, value, PPUDataBuffer);
+				if (PPUAddress >= 0x2000)
+					PPUDataBuffer = ReadPPURAM(PPUAddress);
+				else
+					PPUDataBuffer = ReadCharROM(PPUAddress);
 
-				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x4 ? 32 : 1;
-
+				PPUAddress += ReadPPUIO(0x2000) & 0x4 ? 32 : 1;
 
 				return value;
 			}
 		}
 
-		for (auto& chunk : m_Chunks)
-		{
-			if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
-			{
-				if (chunk.Type == MemoryType::ROM && owner == MemoryOwner::CPU)
-					return m_Cartridge.GetROM(ROMType::Program).ReadAddress(address - chunk.StartAddress);
-				else if (chunk.Type == MemoryType::ROM && owner == MemoryOwner::PPU)
-					return m_Cartridge.GetROM(ROMType::Character).ReadAddress(address - chunk.StartAddress);
-
-				if (chunk.Type == MemoryType::IO)
-				{
-					auto value = m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
-
-					// Reset Vblank and w-flag on PPU_STATUS read
-					if (address == 0x2002)
-					{
-						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value & 0x7F);
-						RegisterW = false;
-					}
-
-					if (address == 0x4016)
-					{
-						return ReadController(0);
-					}
-
-					if (address == 0x4017)
-					{
-						return ReadController(1);
-					}
-
-					return value;
-				}
-				else if (chunk.Type == MemoryType::RAM && owner == chunk.Owner)
-					return m_RAMs[chunk.ID].ReadAddress(address - chunk.StartAddress);
-			}
-		}
-
-		std::println("MemoryManager::ReadMemory - Unknown memory address {:04x}", address);
-
-		return m_RAMs[0xFF].ReadAddress(0);
+		return Map.PPUIO.Data.at(address - Map.PPUIO.StartAddress);
 	}
 
-	auto MemoryManager::WriteMemory(MemoryOwner owner, std::uint16_t address, std::uint8_t value, bool skipPPUCheck) -> void
+	auto MemoryManager::WriteAPURAM(std::uint16_t address, std::uint8_t value) -> void
 	{
-		// Special handling for PPUADDR and PPUDATA transfers
-		if (!skipPPUCheck && (address == 0x2003 || address == 0x2004 || address == 0x2005 || address == 0x2006 || address == 0x2007))
-		{
-			HandlePPUAddress(address, value);
-			return;
-		}
-
-//		if (address == 0x23fe)
-//			__debugbreak();
-
-		for (auto& chunk : m_Chunks)
-		{
-			if (owner == chunk.Owner)
-			{
-				if (chunk.Type == MemoryType::RAM)
-				{
-					if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size && owner == chunk.Owner)
-					{
-						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
-
-						// Handle PPU mirroring
-						if (address >= 0x2000 && address < 0x3000)
-						{
-							if (m_Cartridge.GetAttributes().NametableMirroring == 0)
-								m_RAMs[chunk.ID].WriteAddress((address + 0x400) - chunk.StartAddress, value);
-							else
-								m_RAMs[chunk.ID].WriteAddress((address + 0x800) - chunk.StartAddress, value);
-						}
-
-						return;
-					}
-				}
-				else if (chunk.Type == MemoryType::IO)
-				{
-					if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size)
-					{
-						m_RAMs[chunk.ID].WriteAddress(address - chunk.StartAddress, value);
-						return;
-					}
-				}
-			}
-		}
-
-		std::println("MemoryManager::WriteMemory - Unknown memory address {:04x}  | PPUAddress: {:04x} : PPUData: {:02x}", address, PPUAddress, value);
+		Map.APURAM.Data.at(address - Map.APURAM.StartAddress) = value;
 	}
 
-	auto MemoryManager::GetIOAddress(std::uint16_t address) -> std::uint8_t&
+	auto MemoryManager::WriteCPURAM(std::uint16_t address, std::uint8_t value) -> void
 	{
-		for (auto& chunk : m_Chunks)
-		{
-			if (chunk.Type == MemoryType::IO)
-			{
-				if (address >= chunk.StartAddress && address < chunk.StartAddress + chunk.Size)
-					return m_RAMs[chunk.ID].GetAddress(address - chunk.StartAddress);
-			}
-		}
-
-		// The zero here might be uninitialized.
-		return m_RAMs[0xFF].GetAddress(0);
+		Map.CPURAM.Data.at(address - Map.CPURAM.StartAddress) = value;
 	}
 
-	auto MemoryManager::DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void
+	auto MemoryManager::WriteOAMRAM(std::uint16_t address, std::uint8_t value) -> void
 	{
-		std::uint8_t addressHigh{};
-		std::uint16_t length{};
-
-		if (targetOwner == MemoryOwner::PPU)
-		{
-//			std::println(" DMA 0x4014: {:02x}", value);
-			length = 0x100;
-
-			std::uint16_t address = (value << 8) & 0xFF00;
-
-			for (auto i = 0; i < length; i++)
-			{
-				// Write via PPUDATA
-				WriteMemory(MemoryOwner::CPU, 0x2004, ReadMemory(MemoryOwner::CPU, address + i));
-			}
-		}
-		else if (targetOwner == MemoryOwner::ASU)
-		{
-			length = 2;
-		}
-
+		Map.OAMRAM.Data.at(address - Map.OAMRAM.StartAddress) = value;
 	}
 
-	auto MemoryManager::GetMemory(const std::string& memoryName) -> std::vector<std::uint8_t>&
+	auto MemoryManager::WritePPURAM(std::uint16_t address, std::uint8_t value) -> void
 	{
-		for (auto& chunk : m_Chunks)
+		if (address >= 0x2000 && address < 0x3000)
 		{
-			if (chunk.Name == memoryName)
-				return m_RAMs.at(chunk.ID).GetData();
+			if (m_Cartridge.GetAttributes().NametableMirroring == 0)
+				Map.PPURAM.Data.at((address + 0x400) - Map.PPURAM.StartAddress) = value;
+			else
+				Map.PPURAM.Data.at((address + 0x800) - Map.PPURAM.StartAddress) = value;
 		}
 
-		return m_RAMs.at(m_Chunks.at(0).ID).GetData();
+		Map.PPURAM.Data.at(address - Map.PPURAM.StartAddress) = value;
 	}
 
-	auto MemoryManager::HandlePPUAddress(std::uint16_t address, std::uint8_t value) -> void
+	auto MemoryManager::WriteAPUIO(std::uint16_t address, std::uint8_t value) -> void
+	{
+		Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
+	}
+
+	auto MemoryManager::WritePPUIO(std::uint16_t address, std::uint8_t value) -> void
 	{
 		switch (address)
 		{
 			case 0x2003:
 			{
-//				std::println(" OAMAddress: {:02}", value);
 				OAMAddress = value & 0x00FF;
 				break;
 			}
 
 			case 0x2004:
 			{
-				WriteMemory(MemoryOwner::PPU, OAMAddress, value, true);
+				WriteOAMRAM(OAMAddress, value);
 				OAMAddress++;
 
 				break;
@@ -258,8 +188,6 @@ namespace emu
 				else
 					ScrollY = value;
 
-//				std::println(" ScrollX: {:02x}\n ScrollY: {:02x}", ScrollX, ScrollY);
-
 				RegisterW = !RegisterW;
 
 				break;
@@ -270,13 +198,15 @@ namespace emu
 				if (!RegisterW)
 				{
 					PPUAddress = ((value & 0x3F) << 8) & 0xFF00;
-//					std::println("PPUAddress half: {:04x}", PPUAddress);
 				}
 				else
 				{
 					PPUAddress += value;
-					PPUDataBuffer = ReadMemory(MemoryOwner::PPU, PPUAddress);
-//					std::println("PPUAddress: {:04x}", PPUAddress);
+	
+					if (PPUAddress > 0x2000)
+						PPUDataBuffer = ReadPPURAM(PPUAddress);
+					else
+						PPUDataBuffer = 0;
 				}
 
 				RegisterW = !RegisterW;
@@ -287,16 +217,43 @@ namespace emu
 			case 0x2007:
 			{
 				if (PPUAddress < 0x2000 && PPUAddress >= 0x0100)
+				{
 					std::println("Invalid PPUAddress for write: {:04x}", PPUAddress);
-				
-//				if (PPUAddress >= 0x23C0 && PPUAddress < 0x2400 && value == 0xaa)
-//					std::println(" Attrib {:04x} : {:02x}", PPUAddress, value);
+					return;
+				}
 
-				WriteMemory(MemoryOwner::PPU, PPUAddress, value, true);
-				PPUAddress += ReadMemory(MemoryOwner::CPU, 0x2000) & 0x4 ? 32 : 1;
+				WritePPURAM(PPUAddress, value);
+				PPUAddress += ReadPPUIO(0x2000) & 0x4 ? 32 : 1;
+
 				break;
 			}
 		}
+
+		Map.PPUIO.Data.at(address - Map.PPUIO.StartAddress) = value;
+	}
+
+	auto MemoryManager::DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void
+	{
+		std::uint8_t addressHigh{};
+		std::uint16_t length{};
+
+		if (targetOwner == MemoryOwner::PPU)
+		{
+			length = 0x100;
+
+			std::uint16_t address = (value << 8) & 0xFF00;
+
+			for (auto i = 0; i < length; i++)
+			{
+				// Write via PPUDATA
+				WriteOAMRAM(i, ReadCPURAM(address + i));
+			}
+		}
+		else if (targetOwner == MemoryOwner::ASU)
+		{
+			length = 2;
+		}
+
 	}
 
 	auto MemoryManager::GetScrollXRegister() const -> const std::uint16_t
@@ -330,53 +287,55 @@ namespace emu
 		}
 	}
 
-
-	auto MemoryManager::ViewMemory() -> void
+	auto DrawMemory(Memory& memory) -> void
 	{
-		ImGui::Begin("Memory");
-
-		if (ImGui::InputInt("Chunk", &SelectedChunk))
-		{
-			if (SelectedChunk < 0) SelectedChunk = 0;
-			if (SelectedChunk >= m_Chunks.size()) SelectedChunk = m_Chunks.size() - 1;
-		}
-
 		// Chunk info block
 		{
-			auto chunk = m_Chunks.at(SelectedChunk);
-
-			if (chunk.Type == MemoryType::ROM) ImGui::Text("ChunkType: ROM");
-			if (chunk.Type == MemoryType::RAM) ImGui::Text("ChunkType: RAM");
-			if (chunk.Type == MemoryType::IO)  ImGui::Text("ChunkType: IO");
-
-			ImGui::Text("Start address: %04x", chunk.StartAddress);
-			ImGui::Text("Length: %04x", chunk.Size);
-
-			if (chunk.Owner == MemoryOwner::CPU) ImGui::Text("Owner: CPU");
-			if (chunk.Owner == MemoryOwner::PPU) ImGui::Text("Owner: PPU");
-			if (chunk.Owner == MemoryOwner::ASU) ImGui::Text("Owner: ASU");
+			ImGui::Text("Start address: %04x", memory.StartAddress);
+			ImGui::Text("Length: %04x", memory.Size);
 
 			ImGui::Separator();
 
-			ImGui::Text("%s", chunk.Name.c_str());
+			ImGui::Text("%s", memory.Name.c_str());
 
 			ImGui::Separator();
 
 			if (ImGui::InputInt("Page", &MemoryPage))
 			{
-				if (MemoryPage < 0 || chunk.Size <= 0x100) MemoryPage = 0;
-				if (MemoryPage > ((chunk.Size / 256) - 1) && chunk.Size > 0x100) MemoryPage = (chunk.Size / 256) - 1;
+				if (MemoryPage < 0 || memory.Size <= 0x100) MemoryPage = 0;
+				if (MemoryPage > ((memory.Size / 256) - 1) && memory.Size > 0x100) MemoryPage = (memory.Size / 256) - 1;
 			}
 
 			ImGui::Separator();
 
-			if (chunk.Type == MemoryType::ROM && chunk.Owner == MemoryOwner::CPU) ViewPage(m_Cartridge.GetROM(ROMType::Program).GetData(), chunk.StartAddress);
-			if (chunk.Type == MemoryType::ROM && chunk.Owner == MemoryOwner::PPU) ViewPage(m_Cartridge.GetROM(ROMType::Character).GetData(), chunk.StartAddress);
+			ViewPage(memory.Data, memory.StartAddress);
+		}
 
-			if (chunk.Type == MemoryType::RAM || chunk.Type == MemoryType::IO)
-			{
-				ViewPage(m_RAMs.at(chunk.ID).GetData(), chunk.StartAddress);
-			}
+	}
+
+	auto MemoryManager::ViewMemory() -> void
+	{
+		ImGui::Begin("Memory");
+
+		if (ImGui::InputInt("Memory", &SelectedMemory))
+		{
+			if (SelectedMemory < 0) SelectedMemory = 0;
+			if (SelectedMemory >= 7) SelectedMemory = 7;
+		}
+
+		switch (SelectedMemory)
+		{
+			case 0: DrawMemory(Map.ProgramROM); break;
+			case 1: DrawMemory(Map.CharROM); break;
+			case 2: DrawMemory(Map.PPUIO); break;
+			case 3: DrawMemory(Map.APUIO); break;
+			case 4: DrawMemory(Map.APURAM); break;
+			case 5: DrawMemory(Map.PPURAM); break;
+			case 6: DrawMemory(Map.CPURAM); break;
+			case 7: DrawMemory(Map.OAMRAM); break;
+
+			default:
+				DrawMemory(Map.CPURAM); break;
 		}
 
 		ImGui::End();

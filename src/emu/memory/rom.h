@@ -26,7 +26,10 @@ namespace emu
 		auto SetData(std::uint16_t size, std::span<std::uint8_t> data) -> void;
 		auto GetData() -> auto& { return m_Data; }
 
-		auto ReadAddress(std::uint16_t address) -> std::uint8_t;
+		constexpr auto ReadAddress(std::uint16_t address) -> std::uint8_t
+		{
+			return m_Data.at(address);
+		}
 
 		auto GetSize() const -> auto const { return m_Size; }
 
