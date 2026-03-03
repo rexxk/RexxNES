@@ -72,7 +72,7 @@ namespace emu
 
 		std::uint16_t index{};
 
-		NametableData.resize(32 * 30);
+		NametableData.resize(32 * 30 * 2);
 
 //		for (auto& color : Palette4)
 //			m_MemoryManager.WriteMemory(MemoryOwner::PPU, 0x3F00 + index, Palette4.at(index++));
@@ -152,9 +152,9 @@ namespace emu
 
 //				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
 //				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
-				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-				value &= 0x7F;
-				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
+//				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
+//				value &= 0x7F;
+//				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
 //				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
@@ -196,28 +196,17 @@ namespace emu
 			// Set VBlank flag
 			{
 				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
-//				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
 				value |= 0x80;
 				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
-//				m_MMIO[IO_PPUSTATUS] |= 0x80;
 			}
 
 			// Clear Sprite0 hit flag
 			{
 				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-//				auto value = m_MemoryManager.GetIOAddress(PPUSTATUS);
 				value &= 0xBF;
 				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
-//			auto ppuCtrl = m_CPUMemory.Read(PPUCTRL);
-
-//			if (ppuCtrl & 0x80)
-//			if (m_MMIO[IO_PPUCTRL] & 0x80)
-//			if (auto& value = m_MemoryManager.GetIOAddress(PPUCTRL); value & 0x80)
 			if (auto value = m_MemoryManager.ReadPPUIO(PPUCTRL); value & 0x80)
 				CPU::TriggerNMI();
 
@@ -354,71 +343,63 @@ namespace emu
 	{
 		SceneIsDrawing.store(true);
 
-//		auto ppuCtrl = m_MemoryManager.GetIOAddress(PPUCTRL);
 		auto ppuCtrl = m_MemoryManager.ReadPPUIO(PPUCTRL);
 		auto ppuMask = m_MemoryManager.ReadPPUIO(PPUMASK);
-//		auto ppuMask = m_MemoryManager.GetIOAddress(PPUMASK);
-
-//		auto& oamMemory = m_MemoryManager.GetMemory("OAM RAM");
-//		auto& vram = m_MemoryManager.GetMemory("VRAM");
 
 		std::uint16_t patternBaseAddress = ppuCtrl & 0x10 ? 0x1000 : 0x0000;
 		std::uint16_t spritePatternTable = ppuCtrl & 0x08 ? 0x1000 : 0x0000;
 		std::uint8_t spriteSize = ppuCtrl & 0x20 ? 16 : 8;
 
-//		auto scrollX = m_MemoryManager.GetScrollXRegister();
-//		auto scrollY = m_MemoryManager.GetScrollYRegister();
-
-//		if (scrollX > 31)
-//		{
-//			scrollX = 0;
-//		}
-
-
-//		scrollX += ppuCtrl & 0x1 ? 256 : 0;
-//		scrollY += ppuCtrl & 0x2 ? 240 : 0;
-
-//		if (scrollX != 0 || scrollY != 0)
-//			std::println("ScrollX: {}, ScrollY: {}", scrollX, scrollY);
+		auto scrollX = m_MemoryManager.GetScrollXRegister();
+		auto scrollY = m_MemoryManager.GetScrollYRegister();
 
 		Tilemap.clear();
 
 		std::uint16_t nametableOffset{ 0 };
 
+		std::vector<std::uint8_t> attributeData(0x80);
+
+//		scrollX = 15;
+
 		// Load tile data
 		for (auto y = 0; y < 30; y++)
 		{
-			for (auto x = 0; x < 32; x++)
+			for (auto x = 0; x < 64; x++)
 			{
 				nametableOffset = (ppuCtrl & 0x03) * 0x400;
 
-				auto scrollX = m_MemoryManager.GetScrollXRegister();
-				auto scrollY = m_MemoryManager.GetScrollYRegister();
-
-//				scrollX = 8;
-
-				if (x + scrollX > 31)
+				auto xpos = x;
+				if (x >= 32)
 				{
-					scrollX = 0;
 					nametableOffset ^= 0x400;
+					xpos -= 32;
 				}
 
-				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x + scrollX);
-				NametableData[y * 32 + x] = tileID;
+				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + xpos);
+					NametableData[y * 64 + x] = tileID;
 
 				if (!Tilemap.contains(tileID))
 					LoadTile(m_MemoryManager, patternBaseAddress, tileID);
 			}
 		}
 
-		// Load attribute data
-		std::vector<std::uint8_t> attributeData(0x40);
-
-		for (auto i = 0; i < 0x40; i++)
+		for (auto y = 0; y < 8; y++)
 		{
-	//		attributeData[i] = vram.at(nametableOffset+ 0x400 + 0x3c0 + i);
-			attributeData[i] = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + 0x3c0 + i);
+			for (auto x = 0; x < 16; x++)
+			{
+				nametableOffset = (ppuCtrl & 0x03) * 0x400;
+
+				auto xpos = x;
+				if (x >= 8)
+				{
+					nametableOffset ^= 0x400;
+					xpos -= 8;
+				}
+
+				attributeData[y * 16 + x] = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + 0x3c0 + y * 8 + xpos);
+			}
 		}
+
 
 		// Parse screen (tilewise)
 		for (auto y = 0u; y < 30u; y++)
@@ -430,11 +411,14 @@ namespace emu
 				if (!(ppuMask & 0x08))
 					continue;
 
-				std::uint16_t tile = y * 32u + x;
-				std::uint16_t attribute = y / 4 * 8u + x / 4;
+//				if (x + scrollX > 64) scrollX -= 64;
+//				if (y + scrollY > 30) scrollY -= 30;
 
-				std::uint8_t tileAttributeX = (x % 4) > 1 ? 1 : 0;
-				std::uint8_t tileAttributeY = (y % 4) > 1 ? 2 : 0;
+				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX);
+				std::uint16_t attribute = (y + scrollY) / 4 * 16u + (x + scrollX) / 4;
+
+				std::uint8_t tileAttributeX = ((x + scrollX) % 4) > 1 ? 1 : 0;
+				std::uint8_t tileAttributeY = ((y + scrollY) % 4) > 1 ? 2 : 0;
 
 				// Shift down attributeValue to correct block
 

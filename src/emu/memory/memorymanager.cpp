@@ -111,7 +111,7 @@ namespace emu
 		{
 			if (address == 0x2002)
 			{
-//				Map.PPUIO.Data.at(2) &= 0x7F;
+	//			Map.PPUIO.Data.at(2) &= 0x7F;
 				RegisterW = false;
 			}
 
