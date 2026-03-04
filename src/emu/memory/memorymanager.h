@@ -55,6 +55,10 @@ namespace emu
 		auto GetScrollXRegister() const -> const std::uint16_t;
 		auto GetScrollYRegister() const -> const std::uint16_t;
 
+		auto GetVRegister() const -> const std::uint16_t;
+		auto GetTRegister() const -> const std::uint16_t;
+		auto GetXRegister() const -> const std::uint8_t;
+
 		auto ViewMemory() -> void;
 
 	private:

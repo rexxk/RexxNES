@@ -350,8 +350,11 @@ namespace emu
 		std::uint16_t spritePatternTable = ppuCtrl & 0x08 ? 0x1000 : 0x0000;
 		std::uint8_t spriteSize = ppuCtrl & 0x20 ? 16 : 8;
 
-		auto scrollX = m_MemoryManager.GetScrollXRegister();
-		auto scrollY = m_MemoryManager.GetScrollYRegister();
+//		auto scrollX = m_MemoryManager.GetScrollXRegister();
+//		auto scrollY = m_MemoryManager.GetScrollYRegister();
+
+		auto scrollT = m_MemoryManager.GetTRegister();
+		auto scrollV = m_MemoryManager.GetVRegister();
 
 		Tilemap.clear();
 
@@ -400,6 +403,8 @@ namespace emu
 			}
 		}
 
+		if (scrollT != 0)
+			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
 
 		// Parse screen (tilewise)
 		for (auto y = 0u; y < 30u; y++)
@@ -414,10 +419,17 @@ namespace emu
 //				if (x + scrollX > 64) scrollX -= 64;
 //				if (y + scrollY > 30) scrollY -= 30;
 
-				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX);
-				std::uint16_t attribute = (y + scrollY) / 4 * 16u + (x + scrollX) / 4;
+				auto scrollX = scrollT & 0x1F;
+				auto scrollY = 0;
 
+				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX);
+//				std::uint16_t tile = (y) * 64u + (x);
+				std::uint16_t attribute = (y + scrollY) / 4 * 16u + (x + scrollX) / 4;
+//				std::uint16_t attribute = (y) / 4 * 16u + (x) / 4;
+
+//				std::uint8_t tileAttributeX = ((x) % 4) > 1 ? 1 : 0;
 				std::uint8_t tileAttributeX = ((x + scrollX) % 4) > 1 ? 1 : 0;
+//				std::uint8_t tileAttributeY = ((y) % 4) > 1 ? 2 : 0;
 				std::uint8_t tileAttributeY = ((y + scrollY) % 4) > 1 ? 2 : 0;
 
 				// Shift down attributeValue to correct block

@@ -21,6 +21,10 @@ namespace emu
 	static std::uint16_t OAMAddress{ 0u };
 	static bool RegisterW{ false };
 
+	static std::uint16_t RegisterV{ 0u };
+	static std::uint16_t RegisterT{ 0u };
+	static std::uint8_t RegisterX{ 0u };
+
 	static std::uint16_t ScrollX{ 0u };
 	static std::uint16_t ScrollY{ 0u };
 
@@ -173,6 +177,19 @@ namespace emu
 	{
 		switch (address)
 		{
+			case 0x2000:
+			{
+				RegisterT &= 0xF3;
+				RegisterT |= (value & 0x3) << 10;
+				break;
+			}
+
+			case 0x2002:
+			{
+				RegisterW = false;
+				break;
+			}
+
 			case 0x2003:
 			{
 				OAMAddress = value & 0x00FF;
@@ -189,10 +206,25 @@ namespace emu
 
 			case 0x2005:
 			{
+//				if (value != 0)
+//					__debugbreak();
+
 				if (!RegisterW)
+				{
 					ScrollX = value;
+
+					RegisterT &= 0xE0;
+					RegisterT |= (value & 0xF8) >> 3;
+					RegisterX = value & 0x07;
+				}
 				else
+				{
 					ScrollY = value;
+
+					RegisterT &= 0x0C1F;
+					RegisterT |= (value & 0xF8) << 2;
+					RegisterT |= (value & 0x03) << 13;
+				}
 
 				RegisterW = !RegisterW;
 
@@ -204,6 +236,8 @@ namespace emu
 				if (!RegisterW)
 				{
 					PPUAddress = ((value & 0x3F) << 8) & 0xFF00;
+
+					RegisterT &= 0x7FFF;
 				}
 				else
 				{
@@ -213,6 +247,8 @@ namespace emu
 						PPUDataBuffer = ReadPPURAM(PPUAddress);
 					else
 						PPUDataBuffer = 0;
+
+					RegisterV = RegisterT;
 				}
 
 				RegisterW = !RegisterW;
@@ -270,6 +306,21 @@ namespace emu
 	auto MemoryManager::GetScrollYRegister() const -> const std::uint16_t
 	{
 		return ScrollY;
+	}
+
+	auto MemoryManager::GetVRegister() const -> const std::uint16_t
+	{
+		return RegisterV;
+	}
+
+	auto MemoryManager::GetTRegister() const -> const std::uint16_t
+	{
+		return RegisterT;
+	}
+
+	auto MemoryManager::GetXRegister() const -> const std::uint8_t
+	{
+		return RegisterX;
 	}
 
 
