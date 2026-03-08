@@ -1299,6 +1299,11 @@ namespace emu
 		s_NMI.store(true);
 	}
 
+	auto CPU::NMIRunning() -> bool
+	{
+		return s_NMIRunning.load();
+	}
+
 	auto CPU::StepToRTS() -> void
 	{
 		s_StepToRTS.store(true);

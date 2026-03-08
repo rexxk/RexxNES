@@ -191,6 +191,9 @@ namespace emu
 			while (SceneIsDrawing.load())
 				;
 
+			while (CPU::NMIRunning())
+				;
+
 			GenerateImageData(ImageData);
 
 			// Set VBlank flag
@@ -310,6 +313,8 @@ namespace emu
 	{
 		std::uint8_t spriteSelect{ 0 };
 
+		auto xOffset = memoryManager.GetXRegister();
+
 		if (!Tilemap.contains(tileID))
 		{
 			std::println("Tile {:02x} unavailable", tileID);
@@ -355,6 +360,10 @@ namespace emu
 
 		auto scrollT = m_MemoryManager.GetTRegister();
 		auto scrollV = m_MemoryManager.GetVRegister();
+		auto scrollFine = m_MemoryManager.GetXRegister();
+
+		auto scrollX = scrollT & 0x1F;
+		auto scrollY = 0;
 
 		Tilemap.clear();
 
@@ -369,17 +378,19 @@ namespace emu
 		{
 			for (auto x = 0; x < 64; x++)
 			{
-				nametableOffset = (ppuCtrl & 0x03) * 0x400;
+//				nametableOffset = (ppuCtrl & 0x03) * 0x400;
+				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
 
-				auto xpos = x;
+//				auto xpos = x;
 				if (x >= 32)
 				{
 					nametableOffset ^= 0x400;
-					xpos -= 32;
+//					xpos -= 32;
 				}
 
-				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + xpos);
-					NametableData[y * 64 + x] = tileID;
+				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x % 32); //xpos);
+
+				NametableData[y * 64 + x] = tileID;
 
 				if (!Tilemap.contains(tileID))
 					LoadTile(m_MemoryManager, patternBaseAddress, tileID);
@@ -390,16 +401,17 @@ namespace emu
 		{
 			for (auto x = 0; x < 16; x++)
 			{
-				nametableOffset = (ppuCtrl & 0x03) * 0x400;
+//				nametableOffset = (ppuCtrl & 0x03) * 0x400;
+				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
 
-				auto xpos = x;
+//				auto xpos = x;
 				if (x >= 8)
 				{
 					nametableOffset ^= 0x400;
-					xpos -= 8;
+//					xpos -= 8;
 				}
 
-				attributeData[y * 16 + x] = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + 0x3c0 + y * 8 + xpos);
+				attributeData[y * 16 + x] = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + 0x3c0 + y * 8 + x % 8); // xpos);
 			}
 		}
 
@@ -418,9 +430,6 @@ namespace emu
 
 //				if (x + scrollX > 64) scrollX -= 64;
 //				if (y + scrollY > 30) scrollY -= 30;
-
-				auto scrollX = scrollT & 0x1F;
-				auto scrollY = 0;
 
 				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX);
 //				std::uint16_t tile = (y) * 64u + (x);

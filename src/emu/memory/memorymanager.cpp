@@ -42,7 +42,7 @@ namespace emu
 
 		auto bits = Controller::GetButtonBits();
 
-		std::uint8_t value = (bits >> ControllerClock++) & 0x01;
+		std::uint8_t value = ((bits >> ControllerClock++) & 0x01);
 
 		if (ControllerClock > 7)
 			ControllerClock = 0;
@@ -98,12 +98,16 @@ namespace emu
 	{
 		if (address == 0x4016)
 		{
-			return ReadController(0);
+			auto value = ReadController(0);
+			Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
+//			return ReadController(0);
 		}
 
 		if (address == 0x4017)
 		{
-			return ReadController(1);
+			auto value = ReadController(1);
+			Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
+//			return ReadController(1);
 		}
 
 		return Map.APUIO.Data.at(address - Map.APUIO.StartAddress);
