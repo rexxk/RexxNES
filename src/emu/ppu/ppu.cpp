@@ -309,11 +309,11 @@ namespace emu
 		Tilemap[tileID] = newTileData;
 	}
 
-	auto DrawTile(std::uint8_t tileID, std::uint8_t tileAttribute, std::uint16_t x, std::uint16_t y, std::uint8_t sizeY, MemoryManager& memoryManager) -> void
+	auto DrawTile(std::uint8_t tileID, std::uint8_t tileAttribute, std::uint16_t x, std::uint16_t y, std::uint8_t sizeY, std::uint8_t scrollX, MemoryManager& memoryManager) -> void
 	{
 		std::uint8_t spriteSelect{ 0 };
 
-		auto xOffset = memoryManager.GetXRegister();
+//		auto xOffset = memoryManager.GetXRegister();
 
 		if (!Tilemap.contains(tileID))
 		{
@@ -333,8 +333,11 @@ namespace emu
 
 				auto color = PaletteColors.at(paletteColor);
 
-				auto posX = x * 8 + xIndex;
+				auto posX = x * 8 + xIndex - scrollX;
 				auto posY = y * 8 + yIndex;
+
+				if (posX < 0)
+					continue;
 
 				ImageData.at((posY * 256 + posX) * 4 + 0) = ((color & 0x0F00) >> 8) / 7.0f * 255;
 				ImageData.at((posY * 256 + posX) * 4 + 1) = ((color & 0x00F0) >> 4) / 7.0f * 255;
@@ -418,6 +421,12 @@ namespace emu
 		if (scrollT != 0)
 			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
 
+		auto softScrollX = scrollX % 8;
+		auto softScrollY = scrollY % 8;
+
+		scrollX >>= 3;
+		scrollY >>= 3;
+
 		// Parse screen (tilewise)
 		for (auto y = 0u; y < 30u; y++)
 		{
@@ -428,25 +437,24 @@ namespace emu
 				if (!(ppuMask & 0x08))
 					continue;
 
-//				if (x + scrollX > 64) scrollX -= 64;
-//				if (y + scrollY > 30) scrollY -= 30;
+				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX) % 64;
+				std::uint16_t attribute = (y + scrollY) / 4 * 16u + (x + scrollX) % 64 / 4;
 
-				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX / 8) % 64;
+				std::uint8_t tileAttributeX = ((x + scrollX) % 4) > 1 ? 1 : 0;
+				std::uint8_t tileAttributeY = ((y + scrollY) % 4) > 1 ? 2 : 0;
+				
 //				std::uint16_t tile = (y) * 64u + (x);
-				std::uint16_t attribute = (y + scrollY) / 4 * 16u + (x + scrollX / 8) % 64 / 4;
 //				std::uint16_t attribute = (y) / 4 * 16u + (x) / 4;
 
 //				std::uint8_t tileAttributeX = ((x) % 4) > 1 ? 1 : 0;
-				std::uint8_t tileAttributeX = ((x + scrollX / 8) % 4) > 1 ? 1 : 0;
 //				std::uint8_t tileAttributeY = ((y) % 4) > 1 ? 2 : 0;
-				std::uint8_t tileAttributeY = ((y + scrollY / 8) % 4) > 1 ? 2 : 0;
 
 				// Shift down attributeValue to correct block
 
 				auto attributeValue = attributeData[attribute];
 				std::uint8_t tileAttribute = (attributeValue >> (2 * (tileAttributeX + tileAttributeY))) & 0x3;
 
-				DrawTile(NametableData[tile], tileAttribute, x, y, 8, m_MemoryManager);
+				DrawTile(NametableData[tile], tileAttribute, x, y, 8, softScrollX, m_MemoryManager);
 			}
 		}
 
