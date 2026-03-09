@@ -336,7 +336,7 @@ namespace emu
 				auto posX = x * 8 + xIndex - scrollX;
 				auto posY = y * 8 + yIndex;
 
-				if (posX < 0)
+				if (posX < 0 || posX >= 256)
 					continue;
 
 				ImageData.at((posY * 256 + posX) * 4 + 0) = ((color & 0x0F00) >> 8) / 7.0f * 255;
@@ -361,9 +361,9 @@ namespace emu
 		auto scrollX = m_MemoryManager.GetScrollXRegister();
 		auto scrollY = m_MemoryManager.GetScrollYRegister();
 
-		auto scrollT = m_MemoryManager.GetTRegister();
-		auto scrollV = m_MemoryManager.GetVRegister();
-		auto scrollFine = m_MemoryManager.GetXRegister();
+//		auto scrollT = m_MemoryManager.GetTRegister();
+//		auto scrollV = m_MemoryManager.GetVRegister();
+//		auto scrollFine = m_MemoryManager.GetXRegister();
 
 //		auto scrollX = scrollT & 0x1F;
 //		auto scrollY = 0;
@@ -418,8 +418,8 @@ namespace emu
 			}
 		}
 
-		if (scrollT != 0)
-			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
+//		if (scrollT != 0)
+//			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
 
 		auto softScrollX = scrollX % 8;
 		auto softScrollY = scrollY % 8;
@@ -430,11 +430,14 @@ namespace emu
 		// Parse screen (tilewise)
 		for (auto y = 0u; y < 30u; y++)
 		{
-			for (auto x = 0u; x < 32u; x++)
+			for (auto x = 0u; x < 33u; x++)
 			{
 				// Draw background
 				// Disabled for debugging purposes
 				if (!(ppuMask & 0x08))
+					continue;
+
+				if (softScrollX == 0 && x == 32)
 					continue;
 
 				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX) % 64;
@@ -454,7 +457,7 @@ namespace emu
 				auto attributeValue = attributeData[attribute];
 				std::uint8_t tileAttribute = (attributeValue >> (2 * (tileAttributeX + tileAttributeY))) & 0x3;
 
-				DrawTile(NametableData[tile], tileAttribute, x, y, 8, softScrollX, m_MemoryManager);
+				DrawTile(NametableData[tile], tileAttribute, x, y, spriteSize, softScrollX, m_MemoryManager);
 			}
 		}
 
