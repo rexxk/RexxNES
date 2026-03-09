@@ -36,8 +36,6 @@ namespace emu
 		auto IsDrawing() -> bool;
 
 	private:
-		auto ProcessScanline(std::uint16_t scanline) -> std::uint16_t;
-
 		auto ReadMemory(std::uint16_t address) -> std::uint8_t;
 		auto WriteMemory(std::uint16_t address, std::uint8_t value) -> void;
 
