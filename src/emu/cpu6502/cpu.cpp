@@ -1138,14 +1138,14 @@ namespace emu
 
 		s_Flags[FlagInterrupt] = false;
 
-		if (startVector == 0)
+		auto resetVector = 0xFFFC;
+
+		if (startVector != 0)
 		{
-			auto resetVector = 0xFFFC;
-			s_Registers.PC = m_MemoryManager.ReadProgramROM(resetVector + 1) << 8 + m_MemoryManager.ReadProgramROM(resetVector);
-//			s_Registers.PC = m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector + 1) << 8 + m_MemoryManager.ReadMemory(MemoryOwner::CPU, resetVector);
+			resetVector = startVector;
 		}
-		else
-			s_Registers.PC = startVector;
+
+		s_Registers.PC = m_MemoryManager.ReadProgramROM(resetVector + 1) << 8 + m_MemoryManager.ReadProgramROM(resetVector);
 
 		// Sets VBLANK flag - keep it static for debugging until PPU is implemented :-)
 //		m_Memory.Write(0x2002, 0x80);
@@ -1196,6 +1196,7 @@ namespace emu
 					s_NMIRunning.store(true);
 					Break(*this);
 					// PC = 0xFFFA - 1
+//					s_Registers.PC = startVector - 4;
 					s_Registers.PC = 0xFFF9;
 
 // Comment out this to enable stepping on NMI

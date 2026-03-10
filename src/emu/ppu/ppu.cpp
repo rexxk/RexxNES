@@ -114,14 +114,11 @@ namespace emu
 
 			// Clear VBlank flag
 			{
-//				m_MMIO[IO_PPUSTATUS] &= 0x7F;
-
-//				auto value = m_MemoryManager.ReadMemory(MemoryOwner::CPU, PPUSTATUS);
-//				auto& value = m_MemoryManager.GetIOAddress(PPUSTATUS);
+				while (m_MemoryManager.ReadPPUIO(PPUSTATUS) & 0x80)
+					;
 //				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
 //				value &= 0x7F;
 //				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
 			}
 
 			// Set Sprite0 hit flag
@@ -154,51 +151,37 @@ namespace emu
 //				auto nametableAttribute = ReadMemory(0x23c0 + index);
 //			}
 
-			while (SceneIsDrawing.load())
-				;
+//			while (SceneIsDrawing.load())
+//				;
 
-			while (CPU::NMIRunning())
-				;
+//			while (CPU::NMIRunning())
+//				;
 
-			// Read sprites
-
-			Sprites.clear();
-
-			for (auto index = 0; index < 64; index++)
 			{
-				SpriteData sprite;
-				sprite.YPosition = m_MemoryManager.ReadOAMRAM(index * 4);
-				sprite.TileIndex = m_MemoryManager.ReadOAMRAM(index * 4 + 1);
-				sprite.Attributes = m_MemoryManager.ReadOAMRAM(index * 4 + 2);
-				sprite.XPosition = m_MemoryManager.ReadOAMRAM(index * 4 + 3);
-			
-				if (sprite.YPosition >= 0xEF || sprite.XPosition >= 0xF9)
-					continue;
+				NametableData.clear();
+				NametableData.resize(32 * 30 * 2);
 
-				Sprites.push_back(sprite);
+				// Generate image data
+				GenerateImageData(ImageData);
+
+				// Set VBlank flag
+				{
+					auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
+					value |= 0x80;
+					m_MemoryManager.WritePPUIO(PPUSTATUS, value);
+				}
+
+				// Clear Sprite0 hit flag
+				{
+					auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
+					value &= 0xBF;
+					m_MemoryManager.WritePPUIO(PPUSTATUS, value);
+				}
 			}
 
-			NametableData.clear();
-			NametableData.resize(32 * 30 * 2);
 
-			// Generate image data
-			GenerateImageData(ImageData);
-
-			// Set VBlank flag
-			{
-				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-				value |= 0x80;
-				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-			}
-
-			// Clear Sprite0 hit flag
-			{
-				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-				value &= 0xBF;
-				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-			}
-
-			if (auto value = m_MemoryManager.ReadPPUIO(PPUCTRL); value & 0x80)
+//			if (auto value = m_MemoryManager.ReadPPUIO(PPUCTRL); value & 0x80)
+			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80)
 				CPU::TriggerNMI();
 
 			std::this_thread::sleep_for(16ms);
@@ -277,33 +260,33 @@ namespace emu
 	auto DrawSprite(SpriteData& spriteData, std::uint8_t spriteIndex, std::uint8_t backgroundIndex, MemoryManager& memoryManager) -> void
 	{
 		// Check sprite 0 collision
-		if (spriteIndex == 0)
-		{
-			auto& sprite = Sprites[0];
-			auto& tileData = Tilemap.at(sprite.TileIndex);
-			auto& backgroundTileData = Tilemap.at(backgroundIndex);
-	
-			for (auto i = 0; i < 64; i++)
-			{
-				if ((tileData.PixelValues.at(i) & backgroundTileData.PixelValues.at(i)) != 0)
-				{
-					auto value = memoryManager.ReadPPUIO(PPUSTATUS);
-					value |= 0x40;
-					memoryManager.WritePPUIO(PPUSTATUS, value);
-
-					break;
-				}
-			}
-		}
+//		if (spriteIndex == 0)
+//		{
+//			auto& sprite = Sprites[0];
+//			auto& tileData = Tilemap.at(sprite.TileIndex);
+//			auto& backgroundTileData = Tilemap.at(backgroundIndex);
+//	
+//			for (auto i = 0; i < 64; i++)
+//			{
+//				if ((tileData.PixelValues.at(i) & backgroundTileData.PixelValues.at(i)) != 0)
+//				{
+//					auto value = memoryManager.ReadPPUIO(PPUSTATUS);
+//					value |= 0x40;
+//					memoryManager.WritePPUIO(PPUSTATUS, value);
+//
+//					break;
+//				}
+//			}
+//		}
 
 		for (auto yIndex = 0; yIndex < 8; yIndex++)
 		{
 			for (auto xIndex = 0; xIndex < 8; xIndex++)
 			{
-				if (Tilemap[spriteData.TileIndex].PixelValues.at(yIndex * 8 + xIndex) == 0)
+				if (Tilemap.at(spriteData.TileIndex).PixelValues.at(yIndex * 8 + xIndex) == 0)
 					continue;
 
-				std::uint8_t paletteIndex = 0x10 | ((spriteData.Attributes & 0x3) << 2) | (Tilemap[spriteData.TileIndex].PixelValues.at(yIndex * 8 + xIndex) & 0x3);
+				std::uint8_t paletteIndex = 0x10 | ((spriteData.Attributes & 0x3) << 2) | (Tilemap.at(spriteData.TileIndex).PixelValues.at(yIndex * 8 + xIndex) & 0x3);
 				auto paletteColor = memoryManager.ReadPPURAM(0x3F00 + paletteIndex);
 
 				auto color = PaletteColors.at(paletteColor);
@@ -387,6 +370,25 @@ namespace emu
 
 //		auto scrollX = scrollT & 0x1F;
 //		auto scrollY = 0;
+
+		// Read sprites
+
+		Sprites.clear();
+
+		for (auto index = 0; index < 64; index++)
+		{
+			SpriteData sprite;
+			sprite.YPosition = m_MemoryManager.ReadOAMRAM(index * 4);
+			sprite.TileIndex = m_MemoryManager.ReadOAMRAM(index * 4 + 1);
+			sprite.Attributes = m_MemoryManager.ReadOAMRAM(index * 4 + 2);
+			sprite.XPosition = m_MemoryManager.ReadOAMRAM(index * 4 + 3);
+
+			if (sprite.YPosition >= 0xEF || sprite.XPosition >= 0xF9)
+				continue;
+
+			Sprites.push_back(sprite);
+		}
+
 
 		Tilemap.clear();
 
@@ -482,13 +484,16 @@ namespace emu
 			}
 		}
 
-		// Load sprite tiles
-		for (auto sprite : Sprites)
+		if (ppuMask & 0x10)
 		{
-			if (!Tilemap.contains(sprite.TileIndex))
+			// Load sprite tiles
+			for (auto sprite : Sprites)
+			{
+//			if (!Tilemap.contains(sprite.TileIndex))
 				LoadTile(m_MemoryManager, spritePatternTable, sprite.TileIndex);
 
-			DrawSprite(sprite, 0, 0, m_MemoryManager);
+				DrawSprite(sprite, 0, 0, m_MemoryManager);
+			}
 		}
 
 		SceneIsDrawing.store(false);

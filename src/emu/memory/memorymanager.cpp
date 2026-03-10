@@ -120,7 +120,7 @@ namespace emu
 		{
 			if (address == 0x2002)
 			{
-	//			Map.PPUIO.Data.at(2) &= 0x7F;
+				Map.PPUIO.Data.at(2) &= 0x7F;
 				RegisterW = false;
 			}
 
@@ -177,9 +177,16 @@ namespace emu
 		std::lock_guard<std::mutex> lock(m_WriteMutex);
 		Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
 
-		if (address == 0x4016 && (value & 0x1))
+		if (address == 0x4016)
 		{
-			Controller::LatchData();
+			if (value & 0x1)
+			{
+				Controller::LatchData();
+			}
+			else if (value == 0)
+			{
+				ControllerClock = 0;
+			}
 		}
 	}
 

@@ -123,6 +123,7 @@ auto main() -> int
 	ImGui_ImplOpenGL3_Init();
 	
 	emu::Cartridge cartridge("rom/SuperMarioBros.nes");
+//	emu::Cartridge cartridge("rom/controller.nes");
 //	emu::Cartridge cartridge("rom/DonkeyKong.nes");
 	emu::MemoryManager memoryManager(cartridge);
 
@@ -133,6 +134,7 @@ auto main() -> int
 	emu::CPU cpu{ powerHandler, memoryManager };
 
 	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0);
+//	std::thread cpuThread(&emu::CPU::Execute, &cpu, 0xBFFC);
 	std::thread ppuThread(&emu::PPU::Execute, &ppu);
 	std::thread apuThread(&emu::APU::Execute, &apu);
 
