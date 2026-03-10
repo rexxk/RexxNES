@@ -40,7 +40,7 @@ namespace emu
 		if (controllerID == 1)
 			return 0;
 
-		auto bits = Controller::GetButtonBits();
+		auto bits = Controller::GetData();
 
 		std::uint8_t value = ((bits >> ControllerClock++) & 0x01);
 
@@ -100,6 +100,7 @@ namespace emu
 		{
 			auto value = ReadController(0);
 			Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
+//			Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = Controller::GetData();
 //			return ReadController(0);
 		}
 
@@ -175,6 +176,11 @@ namespace emu
 	{
 		std::lock_guard<std::mutex> lock(m_WriteMutex);
 		Map.APUIO.Data.at(address - Map.APUIO.StartAddress) = value;
+
+		if (address == 0x4016 && (value & 0x1))
+		{
+			Controller::LatchData();
+		}
 	}
 
 	auto MemoryManager::WritePPUIO(std::uint16_t address, std::uint8_t value) -> void

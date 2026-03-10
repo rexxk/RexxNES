@@ -8,7 +8,7 @@ namespace emu
 
 
 	static std::array<bool, 8> ButtonState;
-
+	static std::uint8_t DataLatch{};
 
 	auto Controller::SetState(Button button, bool pressed) -> void
 	{
@@ -26,6 +26,16 @@ namespace emu
 		}
 
 		return bitfield;
+	}
+
+	auto Controller::LatchData() -> void
+	{
+		DataLatch = GetButtonBits();
+	}
+
+	auto Controller::GetData() -> std::uint8_t
+	{
+		return DataLatch;
 	}
 
 }

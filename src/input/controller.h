@@ -25,6 +25,9 @@ namespace emu
 
 		static auto GetButtonBits() -> std::uint8_t;
 
+		static auto LatchData() -> void;
+		static auto GetData() -> std::uint8_t;
+
 	};
 
 }

@@ -55,7 +55,7 @@ namespace emu
 	};
 
 	static std::vector<std::uint8_t> ImageData;
-	static std::vector<std::vector<std::uint8_t>> NametableData;
+	static std::vector<std::uint8_t> NametableData;
 
 	static std::unordered_map<std::uint8_t, TileData> Tilemap;
 	static std::vector<SpriteData> Sprites;
@@ -296,17 +296,48 @@ namespace emu
 			}
 		}
 
+		for (auto yIndex = 0; yIndex < 8; yIndex++)
+		{
+			for (auto xIndex = 0; xIndex < 8; xIndex++)
+			{
+				if (Tilemap[spriteData.TileIndex].PixelValues.at(yIndex * 8 + xIndex) == 0)
+					continue;
+
+				std::uint8_t paletteIndex = 0x10 | ((spriteData.Attributes & 0x3) << 2) | (Tilemap[spriteData.TileIndex].PixelValues.at(yIndex * 8 + xIndex) & 0x3);
+				auto paletteColor = memoryManager.ReadPPURAM(0x3F00 + paletteIndex);
+
+				auto color = PaletteColors.at(paletteColor);
+
+				auto posX = spriteData.XPosition + xIndex;
+				auto posY = spriteData.YPosition + yIndex;
+
+				if (spriteData.Attributes & 0x40)
+					posX = spriteData.XPosition + 8 - xIndex;
+				if (spriteData.Attributes & 0x80)
+					posY = spriteData.YPosition + 8 - yIndex;
+
+				if (posX < 0 || posX >= 256 || posY < 0 || posY >= 240)
+					continue;
+
+				ImageData.at((posY * 256 + posX) * 4 + 0) = ((color & 0x0F00) >> 8) / 7.0f * 255;
+				ImageData.at((posY * 256 + posX) * 4 + 1) = ((color & 0x00F0) >> 4) / 7.0f * 255;
+				ImageData.at((posY * 256 + posX) * 4 + 2) = (color & 0x000F) / 7.0f * 255;
+				ImageData.at((posY * 256 + posX) * 4 + 3) = 255;
+			}
+		}
+
+
 	}
 
-	auto DrawTile(std::vector<std::uint8_t> tileIDs, std::uint8_t tileAttribute, std::uint16_t x, std::uint16_t y, std::uint8_t sizeY, std::uint8_t scrollX, MemoryManager& memoryManager) -> void
+	auto DrawTile(std::uint8_t tileID, std::uint8_t tileAttribute, std::uint16_t x, std::uint16_t y, std::uint8_t sizeY, std::uint8_t scrollX, MemoryManager& memoryManager) -> void
 	{
 		std::uint8_t spriteSelect{ 0 };
 
 //		auto xOffset = memoryManager.GetXRegister();
 
-		if (!Tilemap.contains(tileIDs.front()))
+		if (!Tilemap.contains(tileID))
 		{
-			std::println("Tile {:02x} unavailable", tileIDs.front());
+			std::println("Tile {:02x} unavailable", tileID);
 			return;
 		}
 
@@ -314,7 +345,7 @@ namespace emu
 		{
 			for (auto xIndex = 0; xIndex < 8; xIndex++)
 			{
-				std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (Tilemap[tileIDs.front()].PixelValues.at(yIndex * 8 + xIndex) & 0x3);
+				std::uint8_t paletteIndex = (spriteSelect << 4) | ((tileAttribute & 0x3) << 2) | (Tilemap[tileID].PixelValues.at(yIndex * 8 + xIndex) & 0x3);
 				auto paletteColor = memoryManager.ReadPPURAM(0x3F00 + paletteIndex);
 
 				if (paletteColor == 0x0f && paletteIndex % 4 == 0)
@@ -332,14 +363,6 @@ namespace emu
 				ImageData.at((posY * 256 + posX) * 4 + 1) = ((color & 0x00F0) >> 4) / 7.0f * 255;
 				ImageData.at((posY * 256 + posX) * 4 + 2) = (color & 0x000F) / 7.0f * 255;
 				ImageData.at((posY * 256 + posX) * 4 + 3) = 255;
-			}
-		}
-
-		if (tileIDs.size() > 1)
-		{
-			for (auto spriteIndex = 1; spriteIndex < tileIDs.size(); spriteIndex++)
-			{
-				DrawSprite(Sprites[tileIDs.at(spriteIndex)], tileIDs.at(spriteIndex), tileIDs.front(), memoryManager);
 			}
 		}
 	}
@@ -390,7 +413,7 @@ namespace emu
 
 				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x % 32); //xpos);
 
-				NametableData[y * 64 + x].push_back(tileID);
+				NametableData[y * 64 + x] = tileID;
 
 				if (!Tilemap.contains(tileID))
 					LoadTile(m_MemoryManager, patternBaseAddress, tileID);
@@ -443,22 +466,6 @@ namespace emu
 				std::uint8_t tileAttributeX = ((x + scrollX) % 4) > 1 ? 1 : 0;
 				std::uint8_t tileAttributeY = ((y + scrollY) % 4) > 1 ? 2 : 0;
 				
-				std::uint8_t spriteIndex{};
-
-				// Check if sprite hit
-				for (auto sprite : Sprites)
-				{
-					if (sprite.XPosition >= (x * 8) + scrollX && sprite.XPosition < (x * 8) + scrollX + 8 && sprite.YPosition >= (y * 8) + scrollY && sprite.YPosition < (y * 8) + scrollY + spriteSize)
-					{
-						NametableData[tile].push_back(spriteIndex);
-
-						if (!Tilemap.contains(sprite.TileIndex))
-							LoadTile(m_MemoryManager, patternBaseAddress, sprite.TileIndex);
-					}
-
-					spriteIndex++;
-				}
-
 
 //				std::uint16_t tile = (y) * 64u + (x);
 //				std::uint16_t attribute = (y) / 4 * 16u + (x) / 4;
@@ -473,6 +480,15 @@ namespace emu
 
 				DrawTile(NametableData[tile], tileAttribute, x, y, spriteSize, softScrollX, m_MemoryManager);
 			}
+		}
+
+		// Load sprite tiles
+		for (auto sprite : Sprites)
+		{
+			if (!Tilemap.contains(sprite.TileIndex))
+				LoadTile(m_MemoryManager, spritePatternTable, sprite.TileIndex);
+
+			DrawSprite(sprite, 0, 0, m_MemoryManager);
 		}
 
 		SceneIsDrawing.store(false);
