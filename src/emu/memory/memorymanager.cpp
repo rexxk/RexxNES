@@ -1,6 +1,7 @@
 #include "emu/memory/memorymanager.h"
 
 #include "emu/cartridge/mapper.h"
+#include "emu/cpu6502/cpu.h"
 #include "input/controller.h"
 
 #include <mutex>
@@ -62,6 +63,21 @@ namespace emu
 
 	}
 
+	auto MemoryManager::ClearPPUIOBit(std::uint16_t address, std::uint8_t bit) -> void
+	{
+		Map.PPUIO.Data.at(address - Map.PPUIO.StartAddress) &= ~bit;
+	}
+
+	auto MemoryManager::GetPPUIOBit(std::uint16_t address) -> std::uint8_t
+	{
+		return Map.PPUIO.Data.at(address - Map.PPUIO.StartAddress);
+	}
+
+	auto MemoryManager::SetPPUIOBit(std::uint16_t address, std::uint8_t bit) -> void
+	{
+		Map.PPUIO.Data.at(address - Map.PPUIO.StartAddress) |= bit;
+	}
+
 	auto MemoryManager::ReadCharROM(std::uint16_t address) -> std::uint8_t
 	{
 		return Map.CharROM.Data.at(address - Map.CharROM.StartAddress);
@@ -120,8 +136,11 @@ namespace emu
 		{
 			if (address == 0x2002)
 			{
+				auto value = Map.PPUIO.Data.at(2);
 				Map.PPUIO.Data.at(2) &= 0x7F;
 				RegisterW = false;
+
+				return value;
 			}
 
 			if (address == 0x2007)
@@ -198,6 +217,13 @@ namespace emu
 			{
 				RegisterT &= 0xF3;
 				RegisterT |= (value & 0x3) << 10;
+
+				// Check for Vblank NMI and Vblank status is 1
+				if ((value & 0x80) && (Map.PPUIO.Data.at(2) & 0x80))
+				{
+					CPU::TriggerNMI();
+				}
+
 				break;
 			}
 

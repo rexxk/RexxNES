@@ -105,88 +105,49 @@ namespace emu
 					});
 			}
 
-
-
-			// Copy CIRAM to 0x2000 in PPU memory
-			{
-//				std::memcpy(m_PPUMemory.GetData() + 0x2000, PPU_CIRAM.GetData(), 0x2000);
-			}
+			NametableData.clear();
+			NametableData.resize(32 * 30 * 2);
 
 			// Clear VBlank flag
 			{
-				while (m_MemoryManager.ReadPPUIO(PPUSTATUS) & 0x80)
-					;
-//				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-//				value &= 0x7F;
-//				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
+//				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x80);
 			}
 
 			// Set Sprite0 hit flag
 			{
-//				auto value = m_MemoryManager.GetIOAddress(PPUSTATUS);
-				auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-				value |= 0x40;
-				m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, PPUSTATUS, value);
+//				m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x40);
+				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x40);
 			}
 
-			// Do all frame processing
-			{
-//				auto oamAddress = m_MMIO[IO_OAMADDR];
-			}
-
-
-//			for (std::uint16_t scanline = 0; scanline < 241; scanline++)
-//			{
-//				ProcessScanline(scanline);
-//			}
-
-//			for (std::uint16_t index = 0; index < 32 * 30; index++)
-//			{
-//				auto nametableValue = ReadMemory(0x2000 + index);
-//			}
-//
-//			for (std::uint16_t index = 0; index < 64; index++)
-//			{
-//				auto nametableAttribute = ReadMemory(0x23c0 + index);
-//			}
-
-//			while (SceneIsDrawing.load())
-//				;
 
 //			while (CPU::NMIRunning())
 //				;
 
+			// Generate image data
+
+//			while (CPU::NMIRunning())
+//				;
+//			if (!CPU::NMIRunning())
+
+			SceneIsDrawing.store(true);
+			GenerateImageData(ImageData);
+			SceneIsDrawing.store(false);
+
+			// Set VBlank flag
 			{
-				NametableData.clear();
-				NametableData.resize(32 * 30 * 2);
-
-				// Generate image data
-				GenerateImageData(ImageData);
-
-				// Set VBlank flag
-				{
-					auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-					value |= 0x80;
-					m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-				}
-
-				// Clear Sprite0 hit flag
-				{
-					auto value = m_MemoryManager.ReadPPUIO(PPUSTATUS);
-					value &= 0xBF;
-					m_MemoryManager.WritePPUIO(PPUSTATUS, value);
-				}
+				m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x80);
 			}
 
+			// Clear Sprite0 hit flag
+			{
+//				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x40);
+			}
 
-//			if (auto value = m_MemoryManager.ReadPPUIO(PPUCTRL); value & 0x80)
-			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80)
+			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80 && (m_MemoryManager.GetPPUIOBit(PPUSTATUS) & 0x80))
 				CPU::TriggerNMI();
 
-			std::this_thread::sleep_for(16ms);
+			std::this_thread::sleep_for(8ms);
 //			std::this_thread::sleep_for(1ms);
-
 		}
 
 		std::println("Stopping PPU");
@@ -279,6 +240,9 @@ namespace emu
 //			}
 //		}
 
+		if (spriteIndex == 0)
+			memoryManager.SetPPUIOBit(PPUSTATUS, 0x40);
+
 		for (auto yIndex = 0; yIndex < 8; yIndex++)
 		{
 			for (auto xIndex = 0; xIndex < 8; xIndex++)
@@ -352,8 +316,6 @@ namespace emu
 
 	auto PPU::GenerateImageData(std::span<std::uint8_t> imageData) -> void
 	{
-		SceneIsDrawing.store(true);
-
 		auto ppuCtrl = m_MemoryManager.ReadPPUIO(PPUCTRL);
 		auto ppuMask = m_MemoryManager.ReadPPUIO(PPUMASK);
 
@@ -495,8 +457,6 @@ namespace emu
 				DrawSprite(sprite, 0, 0, m_MemoryManager);
 			}
 		}
-
-		SceneIsDrawing.store(false);
 	}
 
 }

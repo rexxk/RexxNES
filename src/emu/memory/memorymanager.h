@@ -50,6 +50,10 @@ namespace emu
 		auto WriteAPUIO(std::uint16_t address, std::uint8_t value) -> void;
 		auto WritePPUIO(std::uint16_t address, std::uint8_t value) -> void;
 
+		auto ClearPPUIOBit(std::uint16_t address, std::uint8_t bit) -> void;
+		auto GetPPUIOBit(std::uint16_t address) -> std::uint8_t;
+		auto SetPPUIOBit(std::uint16_t address, std::uint8_t bit) -> void;
+
 		auto DMATransfer(MemoryOwner targetOwner, std::uint8_t value) -> void;
 
 		auto GetScrollXRegister() const -> const std::uint16_t;
