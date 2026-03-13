@@ -55,13 +55,57 @@ namespace emu
 	};
 
 	static std::vector<std::uint8_t> ImageData;
-	static std::vector<std::uint8_t> NametableData;
+	static std::vector<std::uint16_t> NametableData;
 
-	static std::unordered_map<std::uint8_t, TileData> Tilemap;
+	static std::unordered_map<std::uint16_t, TileData> Tilemap;
+//	static std::unordered_map<std::uint8_t, TileData> Tilemap;
 	static std::vector<SpriteData> Sprites;
 
 
 	std::atomic<bool> SceneIsDrawing{ false };
+
+
+
+	auto LoadTile(MemoryManager& memoryManager, std::uint16_t baseAddress, std::uint16_t tileID) -> void
+	{
+		TileData newTileData;
+
+		std::vector<std::uint8_t> tileData(16);
+		std::uint16_t tileByteAddress = 0;
+
+		for (auto& tileByte : tileData)
+		{
+			tileByte = memoryManager.ReadCharROM(baseAddress + tileID * 16u + tileByteAddress++);
+		}
+
+		auto index{ 0u };
+
+		for (auto row = 0; row < 8; row++)
+		{
+			for (auto col = 0; col < 8; col++)
+			{
+				auto pixelValue{ 0u };
+
+				auto byte1 = tileData.at(row);
+				auto byte2 = tileData.at(row + 8);
+
+				if (byte1 & 1 << (7 - col)) pixelValue += 1;
+				if (byte2 & 1 << (7 - col)) pixelValue += 2;
+
+				newTileData.PixelValues[index++] = pixelValue;
+			}
+		}
+
+		Tilemap[tileID] = newTileData;
+	}
+
+	auto LoadTiles(MemoryManager& memoryManager) -> void
+	{
+		for (auto index = 0; index < 512; index++)
+		{
+			LoadTile(memoryManager, 0x0000, index);
+		}
+	}
 
 
 	PPU::PPU(PowerHandler& powerHandler, MemoryManager& memoryManager, std::uint8_t nametableAlignment)
@@ -71,6 +115,8 @@ namespace emu
 		ImageData.resize(256u * 240u * 4u);
 
 		std::uint16_t index{};
+
+		LoadTiles(m_MemoryManager);
 	}
 
 	auto PPU::IsDrawing() -> bool { return SceneIsDrawing.load(); }
@@ -185,39 +231,6 @@ namespace emu
 		m_MemoryManager.WritePPURAM(address, value);
 	}
 
-	auto LoadTile(MemoryManager& memoryManager, std::uint16_t baseAddress, std::uint8_t tileID) -> void
-	{
-		TileData newTileData;
-
-		std::vector<std::uint8_t> tileData(16);
-		std::uint16_t tileByteAddress = 0;
-
-		for (auto& tileByte : tileData)
-		{
-			tileByte = memoryManager.ReadCharROM(baseAddress + tileID * 16u + tileByteAddress++);
-		}
-
-		auto index{ 0u };
-
-		for (auto row = 0; row < 8; row++)
-		{
-			for (auto col = 0; col < 8; col++)
-			{
-				auto pixelValue{ 0u };
-
-				auto byte1 = tileData.at(row);
-				auto byte2 = tileData.at(row + 8);
-
-				if (byte1 & 1 << (7 - col)) pixelValue += 1;
-				if (byte2 & 1 << (7 - col)) pixelValue += 2;
-
-				newTileData.PixelValues[index++] = pixelValue;
-			}
-		}
-
-		Tilemap[tileID] = newTileData;
-	}
-
 	auto DrawSprite(SpriteData& spriteData, std::uint8_t spriteIndex, std::uint8_t backgroundIndex, MemoryManager& memoryManager) -> void
 	{
 		// Check sprite 0 collision
@@ -276,7 +289,7 @@ namespace emu
 
 	}
 
-	auto DrawTile(std::uint8_t tileID, std::uint8_t tileAttribute, std::uint16_t x, std::uint16_t y, std::uint8_t sizeY, std::uint8_t scrollX, MemoryManager& memoryManager) -> void
+	auto DrawTile(std::uint16_t tileID, std::uint8_t tileAttribute, std::uint16_t x, std::uint16_t y, std::uint8_t sizeY, std::uint8_t scrollX, MemoryManager& memoryManager) -> void
 	{
 		std::uint8_t spriteSelect{ 0 };
 
@@ -341,7 +354,7 @@ namespace emu
 		{
 			SpriteData sprite;
 			sprite.YPosition = m_MemoryManager.ReadOAMRAM(index * 4);
-			sprite.TileIndex = m_MemoryManager.ReadOAMRAM(index * 4 + 1);
+			sprite.TileIndex = m_MemoryManager.ReadOAMRAM(index * 4 + 1) + (spritePatternTable == 0x1000 ? 0x100 : 0x0);
 			sprite.Attributes = m_MemoryManager.ReadOAMRAM(index * 4 + 2);
 			sprite.XPosition = m_MemoryManager.ReadOAMRAM(index * 4 + 3);
 
@@ -352,7 +365,7 @@ namespace emu
 		}
 
 
-		Tilemap.clear();
+//		Tilemap.clear();
 
 		std::uint16_t nametableOffset{ 0 };
 
@@ -375,12 +388,14 @@ namespace emu
 //					xpos -= 32;
 				}
 
+//				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x % 32); //xpos);
 				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x % 32); //xpos);
 
-				NametableData[y * 64 + x] = tileID;
+//				NametableData[y * 64 + x] = tileID;
+				NametableData[y * 64 + x] = tileID + (patternBaseAddress == 0x1000 ? 0x100 : 0x0);
 
-				if (!Tilemap.contains(tileID))
-					LoadTile(m_MemoryManager, patternBaseAddress, tileID);
+//				if (!Tilemap.contains(tileID))
+//					LoadTile(m_MemoryManager, patternBaseAddress, tileID);
 			}
 		}
 
@@ -452,7 +467,7 @@ namespace emu
 			for (auto sprite : Sprites)
 			{
 //			if (!Tilemap.contains(sprite.TileIndex))
-				LoadTile(m_MemoryManager, spritePatternTable, sprite.TileIndex);
+//				LoadTile(m_MemoryManager, spritePatternTable, sprite.TileIndex);
 
 				DrawSprite(sprite, 0, 0, m_MemoryManager);
 			}
