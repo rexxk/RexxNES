@@ -140,6 +140,8 @@ namespace emu
 
 		std::println("Frametime: {}s", frameTime);
 
+		NametableData.resize(32 * 30 * 2);
+
 		while (m_Executing.load())
 		{
 			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
@@ -151,8 +153,9 @@ namespace emu
 					});
 			}
 
-			NametableData.clear();
-			NametableData.resize(32 * 30 * 2);
+			m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x40);
+
+//			NametableData.clear();
 
 			// Clear VBlank flag
 			{
@@ -162,7 +165,6 @@ namespace emu
 			// Set Sprite0 hit flag
 			{
 //				m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x40);
-				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x40);
 			}
 
 
@@ -190,7 +192,11 @@ namespace emu
 			}
 
 			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80 && (m_MemoryManager.GetPPUIOBit(PPUSTATUS) & 0x80))
+			{
 				CPU::TriggerNMI();
+			}
+//			else
+//				std::println("Skipping NMI");
 
 			std::this_thread::sleep_for(8ms);
 //			std::this_thread::sleep_for(1ms);
@@ -336,7 +342,7 @@ namespace emu
 		std::uint16_t spritePatternTable = ppuCtrl & 0x08 ? 0x1000 : 0x0000;
 		std::uint8_t spriteSize = ppuCtrl & 0x20 ? 16 : 8;
 
-		auto scrollX = m_MemoryManager.GetScrollXRegister();
+		auto scrollX = m_MemoryManager.GetScrollXRegister() + ((ppuCtrl & 0x1) << 8);
 		auto scrollY = m_MemoryManager.GetScrollYRegister();
 
 //		auto scrollT = m_MemoryManager.GetTRegister();
@@ -378,20 +384,16 @@ namespace emu
 		{
 			for (auto x = 0; x < 64; x++)
 			{
-//				nametableOffset = (ppuCtrl & 0x03) * 0x400;
 				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
 
-//				auto xpos = x;
 				if (x >= 32)
 				{
 					nametableOffset ^= 0x400;
-//					xpos -= 32;
 				}
 
 //				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x % 32); //xpos);
 				std::uint8_t tileID = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + y * 32 + x % 32); //xpos);
 
-//				NametableData[y * 64 + x] = tileID;
 				NametableData[y * 64 + x] = tileID + (patternBaseAddress == 0x1000 ? 0x100 : 0x0);
 
 //				if (!Tilemap.contains(tileID))
@@ -403,14 +405,11 @@ namespace emu
 		{
 			for (auto x = 0; x < 16; x++)
 			{
-//				nametableOffset = (ppuCtrl & 0x03) * 0x400;
 				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
 
-//				auto xpos = x;
 				if (x >= 8)
 				{
 					nametableOffset ^= 0x400;
-//					xpos -= 8;
 				}
 
 				attributeData[y * 16 + x] = m_MemoryManager.ReadPPURAM(0x2000 + nametableOffset + 0x3c0 + y * 8 + x % 8); // xpos);
@@ -436,22 +435,15 @@ namespace emu
 				if (!(ppuMask & 0x08))
 					continue;
 
-				if (softScrollX == 0 && x == 32)
+				if (x == 32 && softScrollX == 0)
 					continue;
 
-				std::uint16_t tile = (y + scrollY) * 64u + (x + scrollX) % 64;
-				std::uint16_t attribute = (y + scrollY) / 4 * 16u + (x + scrollX) % 64 / 4;
+				std::uint16_t tile = ((y + scrollY) * 64u) + ((x + scrollX) % 64);
+				std::uint16_t attribute = ((y + scrollY) / 4 * 16u) + ((x + scrollX) % 64 / 4);
 
 				std::uint8_t tileAttributeX = ((x + scrollX) % 4) > 1 ? 1 : 0;
 				std::uint8_t tileAttributeY = ((y + scrollY) % 4) > 1 ? 2 : 0;
 				
-
-//				std::uint16_t tile = (y) * 64u + (x);
-//				std::uint16_t attribute = (y) / 4 * 16u + (x) / 4;
-
-//				std::uint8_t tileAttributeX = ((x) % 4) > 1 ? 1 : 0;
-//				std::uint8_t tileAttributeY = ((y) % 4) > 1 ? 2 : 0;
-
 				// Shift down attributeValue to correct block
 
 				auto attributeValue = attributeData[attribute];
@@ -466,9 +458,6 @@ namespace emu
 			// Load sprite tiles
 			for (auto sprite : Sprites)
 			{
-//			if (!Tilemap.contains(sprite.TileIndex))
-//				LoadTile(m_MemoryManager, spritePatternTable, sprite.TileIndex);
-
 				DrawSprite(sprite, 0, 0, m_MemoryManager);
 			}
 		}

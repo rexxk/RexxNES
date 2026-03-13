@@ -352,10 +352,10 @@ namespace emu
 	auto Bit(std::uint8_t value) -> void
 	{
 		s_Flags[FlagZero] = (s_Registers.A & value) == 0;
-		s_Flags[FlagOverflow] = value & 0b0100'0000;
+//		s_Flags[FlagOverflow] = value & 0b0100'0000;
 		s_Flags[FlagNegative] = value & 0b1000'0000;
 
-//		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
+		s_Flags[FlagOverflow] = ((s_Registers.A & 0x80) && !(value & 0x80)) || (!(s_Registers.A & 0x80) && (value & 0x80));
 	}
 
 	static auto BitAbsolute(CPU& cpu) -> std::optional<OpValue>
