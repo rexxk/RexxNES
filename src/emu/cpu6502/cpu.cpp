@@ -238,7 +238,7 @@ namespace emu
 
 	auto AddWithCarry(std::uint8_t value) -> void
 	{
-		bool bit7 = value & 0x40;
+//		bool bit7 = value & 0x40;
 		std::uint16_t result = s_Registers.A + value + s_Flags[FlagCarry];
 		s_Registers.A = static_cast<std::uint8_t>(result);
 
@@ -1166,8 +1166,14 @@ namespace emu
 		std::uint64_t failedExecute{ 0 };
 		std::uint64_t failedCycles{ 0 };
 
+		auto startTime = std::chrono::steady_clock::now();
+		auto endTime = std::chrono::steady_clock::now();
+
 		while (m_Executing.load())
 		{
+			LARGE_INTEGER startCount{};
+			QueryPerformanceCounter(&startCount);
+
 			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
 				m_PowerHandler.SetState(PowerState::Suspended);
 			{
@@ -1177,55 +1183,53 @@ namespace emu
 				});
 			}
 
+
+			uint16_t frameCycles{ 0 };
+
+			if (s_NMI.load() && s_NMIRunning.load() == false && cycles > 500)
 			{
-//				m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x4016, Controller::GetButtonBits());
-			}
-
-// Debug Vframe when PPU is disable
-//			m_MemoryManager.WriteMemory(MemoryOwner::CPU, 0x2002, 0x80);
-
-			{
-				LARGE_INTEGER startCount{};
-				QueryPerformanceCounter(&startCount);
-
-				uint16_t frameCycles{ 0 };
-
-				if (s_NMI.load() && s_NMIRunning.load() == false && cycles > 500)
-				{
-					s_NMI.store(false);
-					s_NMIRunning.store(true);
-					Break(*this);
-					// PC = 0xFFFA - 1
+				s_NMI.store(false);
+				s_NMIRunning.store(true);
+				Break(*this);
+				// PC = 0xFFFA - 1
 //					s_Registers.PC = startVector - 4;
-					s_Registers.PC = 0xFFF9;
+				s_Registers.PC = 0xFFF9;
 
 // Comment out this to enable stepping on NMI
 //					m_PowerHandler.SetState(PowerState::SingleStep);
 
-					JmpAbsolute(*this);
-				}
-				else if (s_IRQ.load() && !s_Flags[FlagInterrupt])
-				{
-					s_IRQ.store(false);
-					std::println("IRQ vector is unused in NES");
-				}
+					startTime = std::chrono::steady_clock::now();
+
+				JmpAbsolute(*this);
+			}
+			else if (s_IRQ.load() && !s_Flags[FlagInterrupt])
+			{
+				s_IRQ.store(false);
+				std::println("IRQ vector is unused in NES");
+			}
 
 
 //				auto opCode = m_MemoryManager.ReadMemory(MemoryOwner::CPU, s_Registers.PC);
-				auto opCode = m_MemoryManager.ReadProgramROM(s_Registers.PC);
-				auto maybeExecuted = s_OpCodes[opCode](*this);
+			auto opCode = m_MemoryManager.ReadProgramROM(s_Registers.PC);
+			auto maybeExecuted = s_OpCodes[opCode](*this);
 
 //				if (!maybeExecuted)
 //					break;
 
-				if (maybeExecuted->ClockCycles == 0)
-				{
-					std::println("Invalid opcode: {:02x}", opCode);
-					m_PowerHandler.SetState(PowerState::Suspended);
-				}
+			if (maybeExecuted->ClockCycles == 0)
+			{
+				std::println("Invalid opcode: {:02x}", opCode);
+				m_PowerHandler.SetState(PowerState::Suspended);
+			}
 
-				s_Registers.PC += maybeExecuted->Size;
+			s_Registers.PC += maybeExecuted->Size;
 
+//				if (opCode == 0x40)
+//				{
+//					endTime = std::chrono::steady_clock::now();
+
+//					std::println("Elapsed time: {}", std::chrono::duration<double>(endTime - startTime).count());
+//				}
 //				if (opCode == 0x60)
 //				if (s_Registers.PC == 0x8e04)
 //				if (s_Registers.PC == 0x9012)
@@ -1242,29 +1246,29 @@ namespace emu
 //					s_StepToRTS.store(false);
 //				}
 
-				cycles += maybeExecuted->ClockCycles + s_DMACycles;
-				frameCycles += maybeExecuted->ClockCycles + s_DMACycles;
+			cycles += maybeExecuted->ClockCycles + s_DMACycles;
+			frameCycles += maybeExecuted->ClockCycles + s_DMACycles;
 
-				s_DMACycles = 0;
+			s_DMACycles = 0;
 
-				std::int64_t countsElapsed{};
+			std::int64_t countsElapsed{};
 
-				// Cycle sync
-				do
+			// Cycle sync
+			do
+			{
+				LARGE_INTEGER endCount;
+				QueryPerformanceCounter(&endCount);
+
+				countsElapsed = endCount.QuadPart - startCount.QuadPart;
+
+				if (countsElapsed > (frameCycles * frequencyDivider))
 				{
-					LARGE_INTEGER endCount;
-					QueryPerformanceCounter(&endCount);
+					failedExecute++;
+					failedCycles += countsElapsed - (frameCycles * frequencyDivider);
+				}
 
-					countsElapsed = endCount.QuadPart - startCount.QuadPart;
+			} while (static_cast<double>(countsElapsed) < (frameCycles * frequencyDivider));
 
-					if (countsElapsed > (frameCycles * frequencyDivider))
-					{
-						failedExecute++;
-						failedCycles += countsElapsed - (frameCycles * frequencyDivider);
-					}
-
-				} while (static_cast<double>(countsElapsed) < (frameCycles * frequencyDivider));
-			}
 		}
 
 		std::println("Cycles: {}", cycles);

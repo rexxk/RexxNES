@@ -252,6 +252,11 @@ namespace emu
 //				if (value != 0)
 //					__debugbreak();
 
+				if (value == 0 && !RegisterW)
+					break;
+
+				std::println("Scroll:: {}", value);
+
 				if (!RegisterW)
 				{
 					ScrollX = value;

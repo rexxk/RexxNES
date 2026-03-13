@@ -50,24 +50,24 @@ namespace emu
 		auto Execute(std::uint16_t startVector = 0) -> void;
 //		auto Execute(std::span<std::uint8_t> program, const std::uint16_t memoryLocation) -> void;
 
-		auto ReadAddress(std::uint16_t address) -> std::uint8_t;
-		auto WriteAddress(std::uint16_t address, std::uint8_t value) -> void;
+		inline auto ReadAddress(std::uint16_t address) -> std::uint8_t;
+		inline auto WriteAddress(std::uint16_t address, std::uint8_t value) -> void;
 
-		auto FetchAbsoluteAddress() -> std::uint16_t;
-		auto FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t;
-		auto FetchIndirectIndexedAddress() -> std::uint16_t;
-		auto FetchZeropageAddress() -> std::uint16_t;
-		auto FetchZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint16_t;
-		auto ReadAbsoluteAddress() -> std::uint8_t;
-		auto ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint8_t;
-		auto ReadIndirectIndexed() -> std::uint8_t;
-		auto ReadZeropageAddress() -> std::uint8_t;
-		auto ReadZeropageAddressRegister(std::uint8_t Registers::* reg) -> std::uint8_t;
-		auto WriteAbsoluteAddress(const std::uint8_t value) -> void;
-		auto WriteAbsoluteAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void;
-		auto WriteIndirectIndexed(std::uint8_t value) -> void;
-		auto WriteZeropageAddress(const std::uint8_t value) -> void;
-		auto WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void;
+		inline auto FetchAbsoluteAddress() -> std::uint16_t;
+		inline auto FetchAbsluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint16_t;
+		inline auto FetchIndirectIndexedAddress() -> std::uint16_t;
+		inline auto FetchZeropageAddress() -> std::uint16_t;
+		inline auto FetchZeropageAddressRegister(std::uint8_t Registers::*reg) -> std::uint16_t;
+		inline auto ReadAbsoluteAddress() -> std::uint8_t;
+		inline auto ReadAbsoluteAddressRegister(std::uint8_t Registers::* reg) -> std::uint8_t;
+		inline auto ReadIndirectIndexed() -> std::uint8_t;
+		inline auto ReadZeropageAddress() -> std::uint8_t;
+		inline auto ReadZeropageAddressRegister(std::uint8_t Registers::* reg) -> std::uint8_t;
+		inline auto WriteAbsoluteAddress(const std::uint8_t value) -> void;
+		inline auto WriteAbsoluteAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void;
+		inline auto WriteIndirectIndexed(std::uint8_t value) -> void;
+		inline auto WriteZeropageAddress(const std::uint8_t value) -> void;
+		inline auto WriteZeropageAddressRegister(std::uint8_t Registers::* reg, const std::uint8_t value) -> void;
 
 		//		auto AbsoluteAddress() -> uint16_t;
 

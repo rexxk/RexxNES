@@ -144,6 +144,8 @@ namespace emu
 
 		while (m_Executing.load())
 		{
+			auto startTime = std::chrono::steady_clock::now();
+
 			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
 				m_PowerHandler.SetState(PowerState::Suspended);
 			{
@@ -165,8 +167,8 @@ namespace emu
 			// Set Sprite0 hit flag
 			{
 //				m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x40);
-			}
 
+			}
 
 //			while (CPU::NMIRunning())
 //				;
@@ -174,12 +176,14 @@ namespace emu
 			// Generate image data
 
 //			while (CPU::NMIRunning())
-//				;
-//			if (!CPU::NMIRunning())
+//				
+			std::this_thread::sleep_for(4ms);
 
 			SceneIsDrawing.store(true);
 			GenerateImageData(ImageData);
 			SceneIsDrawing.store(false);
+
+			std::this_thread::sleep_for(8ms);
 
 			// Set VBlank flag
 			{
@@ -198,8 +202,12 @@ namespace emu
 //			else
 //				std::println("Skipping NMI");
 
-			std::this_thread::sleep_for(8ms);
-//			std::this_thread::sleep_for(1ms);
+//			std::this_thread::sleep_for(2ms);
+			std::this_thread::sleep_for(12ms);
+
+			auto endTime = std::chrono::steady_clock::now();
+
+//			std::println("Frametime: {}", std::chrono::duration<double>(endTime - startTime).count());
 		}
 
 		std::println("Stopping PPU");
@@ -343,11 +351,11 @@ namespace emu
 		std::uint8_t spriteSize = ppuCtrl & 0x20 ? 16 : 8;
 
 		auto scrollX = m_MemoryManager.GetScrollXRegister() + ((ppuCtrl & 0x1) << 8);
-		auto scrollY = m_MemoryManager.GetScrollYRegister();
+		auto scrollY = m_MemoryManager.GetScrollYRegister() + ((ppuCtrl & 0x2) << 8);
 
-//		auto scrollT = m_MemoryManager.GetTRegister();
-//		auto scrollV = m_MemoryManager.GetVRegister();
-//		auto scrollFine = m_MemoryManager.GetXRegister();
+		auto scrollT = m_MemoryManager.GetTRegister();
+		auto scrollV = m_MemoryManager.GetVRegister();
+		auto scrollFine = m_MemoryManager.GetXRegister();
 
 //		auto scrollX = scrollT & 0x1F;
 //		auto scrollY = 0;
@@ -416,8 +424,9 @@ namespace emu
 			}
 		}
 
-//		if (scrollT != 0)
-//			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
+//		if (m_MemoryManager.GetXRegister() != 0)
+			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
+			std::println("ScrollX : {}", scrollX);
 
 		auto softScrollX = scrollX % 8;
 		auto softScrollY = scrollY % 8;
