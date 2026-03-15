@@ -197,6 +197,7 @@ namespace emu
 
 			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80 && (m_MemoryManager.GetPPUIOBit(PPUSTATUS) & 0x80))
 			{
+//				std::println("TriggerNMI");
 				CPU::TriggerNMI();
 			}
 //			else
@@ -353,9 +354,9 @@ namespace emu
 		auto scrollX = m_MemoryManager.GetScrollXRegister() + ((ppuCtrl & 0x1) << 8);
 		auto scrollY = m_MemoryManager.GetScrollYRegister() + ((ppuCtrl & 0x2) << 8);
 
-		auto scrollT = m_MemoryManager.GetTRegister();
-		auto scrollV = m_MemoryManager.GetVRegister();
-		auto scrollFine = m_MemoryManager.GetXRegister();
+//		auto scrollT = m_MemoryManager.GetTRegister();
+//		auto scrollV = m_MemoryManager.GetVRegister();
+//		auto scrollFine = m_MemoryManager.GetXRegister();
 
 //		auto scrollX = scrollT & 0x1F;
 //		auto scrollY = 0;
@@ -425,7 +426,7 @@ namespace emu
 		}
 
 //		if (m_MemoryManager.GetXRegister() != 0)
-			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
+//			std::println("Scroll T: {:04x}  - Scroll V: {:04x}  - Scroll X: {:02x}", scrollT, scrollV, m_MemoryManager.GetXRegister());
 			std::println("ScrollX : {}", scrollX);
 
 		auto softScrollX = scrollX % 8;
