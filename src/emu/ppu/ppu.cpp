@@ -12,6 +12,9 @@
 #include <ranges>
 #include <unordered_map>
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 
 using namespace std::chrono_literals;
 
@@ -32,7 +35,11 @@ namespace emu
 	static std::uint16_t RegT{};
 	static std::uint8_t RegX{};
 	static std::uint8_t RegW{};
-	
+
+	static bool OddFrame = false;
+
+	static std::uint32_t MasterClockFrequency = 21477272u;
+
 	static std::vector<std::uint32_t> PaletteColors
 	{
 		0x333, 0x014, 0x006, 0x326, 0x403, 0x503, 0x510, 0x420, 0x320, 0x120, 0x031, 0x040, 0x022, 0x111, 0x003, 0x020,
@@ -138,12 +145,40 @@ namespace emu
 		auto framesPerSecond = 60.0988f;
 		auto frameTime = 1.0f / framesPerSecond;
 
+
+		const auto frequency = MasterClockFrequency / 4;
+		const auto cycleTime = 1'000'000'000 / frequency;
+
+		LARGE_INTEGER li{};
+		if (!QueryPerformanceFrequency(&li))
+		{
+			std::println("QueryPerformanceFrequency failed");
+		}
+
+		auto freq = li.QuadPart; //  / 1'000.0;
+		auto frequencyDivider = static_cast<double>(freq) / frequency;
+
+		std::println("PPU frequency: {} Hz, PerformanceCounterFrequency = {} Hz, frequencyDivider = {}", frequency, freq, frequencyDivider);
+
 		std::println("Frametime: {}s", frameTime);
 
 		NametableData.resize(32 * 30 * 2);
 
+		LARGE_INTEGER vblankCount{};
+		LARGE_INTEGER vblankStartCount{};
+
+
+		LARGE_INTEGER startCount{};
+		LARGE_INTEGER endCount{};
+
+//		QueryPerformanceCounter(&vblankStartCount);
+
 		while (m_Executing.load())
 		{
+			OddFrame = !OddFrame;
+
+			QueryPerformanceCounter(&startCount);
+
 			auto startTime = std::chrono::steady_clock::now();
 
 			if (m_PowerHandler.GetState() == PowerState::SingleStep || m_PowerHandler.GetState() == PowerState::Off)
@@ -157,11 +192,32 @@ namespace emu
 
 			m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x40);
 
+
+
 //			NametableData.clear();
+
+			// Set VBlank flag
+			{
+				m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x80);
+			}
+
+			QueryPerformanceCounter(&vblankStartCount);
+
+			do 
+			{
+				QueryPerformanceCounter(&vblankCount);
+			} while ((vblankCount.QuadPart - vblankStartCount.QuadPart) * frequencyDivider < 6820);
+
+
+			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80 && (m_MemoryManager.GetPPUIOBit(PPUSTATUS) & 0x80))
+			{
+				//				std::println("TriggerNMI");
+				CPU::TriggerNMI();
+			}
 
 			// Clear VBlank flag
 			{
-//				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x80);
+				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x80);
 			}
 
 			// Set Sprite0 hit flag
@@ -177,36 +233,35 @@ namespace emu
 
 //			while (CPU::NMIRunning())
 //				
-			std::this_thread::sleep_for(4ms);
+//			std::this_thread::sleep_for(4ms);
 
+//			if (OddFrame)
+//			{
 			SceneIsDrawing.store(true);
 			GenerateImageData(ImageData);
 			SceneIsDrawing.store(false);
+//			}
 
-			std::this_thread::sleep_for(8ms);
-
-			// Set VBlank flag
-			{
-				m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x80);
-			}
+//			std::this_thread::sleep_for(8ms);
 
 			// Clear Sprite0 hit flag
 			{
 //				m_MemoryManager.ClearPPUIOBit(PPUSTATUS, 0x40);
 			}
 
-			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80 && (m_MemoryManager.GetPPUIOBit(PPUSTATUS) & 0x80))
-			{
-//				std::println("TriggerNMI");
-				CPU::TriggerNMI();
-			}
 //			else
 //				std::println("Skipping NMI");
 
 //			std::this_thread::sleep_for(2ms);
-			std::this_thread::sleep_for(12ms);
+//			std::this_thread::sleep_for(12ms);
 
-			auto endTime = std::chrono::steady_clock::now();
+
+			do
+			{
+				QueryPerformanceCounter(&endCount);
+			} while ((endCount.QuadPart - startCount.QuadPart) * frequencyDivider * 341 < 240 * 341);
+
+//			auto endTime = std::chrono::steady_clock::now();
 
 //			std::println("Frametime: {}", std::chrono::duration<double>(endTime - startTime).count());
 		}

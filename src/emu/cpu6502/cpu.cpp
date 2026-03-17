@@ -1162,6 +1162,8 @@ namespace emu
 		auto freq = li.QuadPart; //  / 1'000.0;
 		auto frequencyDivider = static_cast<double>(freq) / frequency;
 
+		std::println("CPU frequency: {} Hz, PerformanceCounterFrequency = {} Hz, frequencyDivider = {}", frequency, freq, frequencyDivider);
+
 		std::uint64_t cycles{ 0 };
 		std::uint64_t failedExecute{ 0 };
 		std::uint64_t failedCycles{ 0 };
