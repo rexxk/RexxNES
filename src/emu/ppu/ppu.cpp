@@ -206,7 +206,7 @@ namespace emu
 			do 
 			{
 				QueryPerformanceCounter(&vblankCount);
-			} while ((vblankCount.QuadPart - vblankStartCount.QuadPart) * frequencyDivider < 6820);
+			} while ((vblankCount.QuadPart - vblankStartCount.QuadPart) < (6820 * frequencyDivider));
 
 
 			if (m_MemoryManager.ReadPPUIO(PPUCTRL) & 0x80 && (m_MemoryManager.GetPPUIOBit(PPUSTATUS) & 0x80))
@@ -259,7 +259,7 @@ namespace emu
 			do
 			{
 				QueryPerformanceCounter(&endCount);
-			} while ((endCount.QuadPart - startCount.QuadPart) * frequencyDivider * 341 < 240 * 341);
+			} while ((endCount.QuadPart - startCount.QuadPart) < (240 * 341 * frequencyDivider)); // * frequencyDivider * 341 < (240 * 341 * frequencyDivider));
 
 //			auto endTime = std::chrono::steady_clock::now();
 
@@ -434,6 +434,8 @@ namespace emu
 			Sprites.push_back(sprite);
 		}
 
+		if (Sprites.size() >= 8)
+			m_MemoryManager.SetPPUIOBit(PPUSTATUS, 0x20);
 
 //		Tilemap.clear();
 
@@ -448,7 +450,8 @@ namespace emu
 		{
 			for (auto x = 0; x < 64; x++)
 			{
-				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
+//				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
+				nametableOffset = 0x400 * (ppuCtrl & 0x3);
 
 				if (x >= 32)
 				{
@@ -469,7 +472,8 @@ namespace emu
 		{
 			for (auto x = 0; x < 16; x++)
 			{
-				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
+//				nametableOffset = m_MemoryManager.GetTRegister() & 0x0C00;
+				nametableOffset = 0x400 * (ppuCtrl & 0x3);
 
 				if (x >= 8)
 				{
@@ -503,8 +507,8 @@ namespace emu
 				if (x == 32 && softScrollX == 0)
 					continue;
 
-				std::uint16_t tile = ((y + scrollY) * 64u) + ((x + scrollX) % 64);
-				std::uint16_t attribute = ((y + scrollY) / 4 * 16u) + ((x + scrollX) % 64 / 4);
+				std::uint16_t tile = ((y + scrollY) * 64u) + (((x + scrollX) % 64));
+				std::uint16_t attribute = ((y + scrollY) / 4 * 16u) + (((x + scrollX) % 64) / 4);
 
 				std::uint8_t tileAttributeX = ((x + scrollX) % 4) > 1 ? 1 : 0;
 				std::uint8_t tileAttributeY = ((y + scrollY) % 4) > 1 ? 2 : 0;
